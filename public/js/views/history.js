@@ -16,7 +16,7 @@
     methods: {
       studentsOf, classById,
       async remove(s) {
-        if (!confirm(`删除 ${s.date} ${s.subject} 的登记记录？`)) return;
+        if (!confirm(`删除 ${s.date} ${s.title || s.subject} 的登记记录？`)) return;
         await api('DELETE', `/sessions/${s.id}`);
         toast('已删除');
       },
@@ -45,7 +45,7 @@
               ]);
             }
             const ws = XLSX.utils.aoa_to_sheet(rows);
-            const sheetName = `${s.date}_${s.subject}`.replace(/[\\/?*\[\]:]/g, '-').slice(0, 31);
+            const sheetName = `${s.date}_${s.title || s.subject}`.replace(/[\\/?*\[\]:]/g, '-').slice(0, 31);
             XLSX.utils.book_append_sheet(wb, ws, sheetName);
             if (!first) first = full;
           }
@@ -70,12 +70,12 @@
 
       <div class="card" v-if="list.length">
         <table class="list">
-          <thead><tr><th>日期</th><th>班级</th><th>科目</th><th>提交</th><th>状态</th><th></th></tr></thead>
+          <thead><tr><th>日期</th><th>班级</th><th>科目 / 标题</th><th>提交</th><th>状态</th><th></th></tr></thead>
           <tbody>
             <tr v-for="s in list" :key="s.id">
               <td>{{ s.date }}</td>
               <td>{{ (classById(s.classId)||{}).name }}</td>
-              <td><b>{{ s.subject }}</b></td>
+              <td><b>{{ s.title || s.subject }}</b><span class="hint" v-if="s.title" style="margin-left:6px">{{ s.subject }}</span></td>
               <td><span class="tag" :class="s.submitted + s.late >= studentsOf(s.classId).length ? 'green' : ''">{{ s.submitted + s.late }}/{{ studentsOf(s.classId).length }}</span><span class="tag amber" v-if="s.late" style="margin-left:4px">补{{ s.late }}</span></td>
               <td>{{ s.closed ? '已截止' : '收集中' }}</td>
               <td>

@@ -12,6 +12,7 @@
         subjects: SUBJECTS,
         subject: '数学',
         subjectCustom: '',
+        title: '',
         date: new Date().toISOString().slice(0, 10),
         showQrFor: null,   // 显示手机入口二维码的场次 id
         qrDataUrl: '',
@@ -34,9 +35,10 @@
       async createSession() {
         if (!this.classId) return toast('请先在「名单」页创建班级', 'err');
         if (studentsOf(this.classId).length === 0) return toast('这个班还没有学生名单', 'err');
-        const s = await api('POST', '/sessions', { classId: this.classId, subject: this.effectiveSubject, date: this.date });
+        const s = await api('POST', '/sessions', { classId: this.classId, subject: this.effectiveSubject, title: this.title.trim(), date: this.date });
         await refresh();
         toast('场次已创建，可以把手机拿过来了', 'ok');
+        this.title = '';
         this.openQr(s.id);
         this.$router.push(`/live/${s.id}`);
       },
@@ -89,17 +91,20 @@
           <span v-for="s in subjects" :key="s" class="chip" :class="{on: subject===s && !subjectCustom}" @click="subject=s; subjectCustom=''">{{ s }}</span>
           <input v-model="subjectCustom" :placeholder="subject + ' / 自定义科目'" style="width:170px">
         </div>
+        <div class="row" style="margin-bottom:12px">
+          <input v-model="title" placeholder="作业标题（可选），如：光的干涉 —— 方便归档、发给家长" style="flex:1">
+        </div>
         <button class="btn primary big" @click="createSession">✋ 开始收作业</button>
       </div>
 
       <div class="card" v-if="openSessions.length">
         <h2>收集中 <span class="sub">扫完点「截止」，之后的扫码自动记为补交</span></h2>
         <table class="list">
-          <thead><tr><th>班级</th><th>科目</th><th>日期</th><th>进度</th><th style="min-width:280px"></th></tr></thead>
+          <thead><tr><th>班级</th><th>科目 / 标题</th><th>日期</th><th>进度</th><th style="min-width:280px"></th></tr></thead>
           <tbody>
             <tr v-for="s in openSessions" :key="s.id">
               <td>{{ (classById(s.classId)||{}).name }}</td>
-              <td><b>{{ s.subject }}</b></td>
+              <td><b>{{ s.title || s.subject }}</b><span class="hint" v-if="s.title" style="margin-left:6px">{{ s.subject }}</span></td>
               <td>{{ s.date }}</td>
               <td><span class="tag green">{{ s.submitted + s.late }}/{{ studentsOf(s.classId).length }}</span></td>
               <td>
@@ -120,7 +125,7 @@
         <table class="list">
           <tbody>
             <tr v-for="s in recentClosed" :key="s.id">
-              <td>{{ (classById(s.classId)||{}).name }} <b>{{ s.subject }}</b> {{ s.date }}</td>
+                <td>{{ (classById(s.classId)||{}).name }} <b>{{ s.title || s.subject }}</b>{{ s.title ? '（' + s.subject + '）' : '' }} {{ s.date }}</td>
               <td><span class="tag">{{ s.submitted + s.late }}/{{ studentsOf(s.classId).length }}</span></td>
               <td>
                 <div class="row">

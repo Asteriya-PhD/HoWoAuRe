@@ -77,9 +77,10 @@
 
   // 未交名单文案
   function absentText(sessionFull) {
+    const t = sessionFull.title ? `「${sessionFull.title}」` : '';
     const absent = sessionFull.students.filter(s => !s.sub);
-    if (!absent.length) return `【作业登记】${sessionFull.className} ${sessionFull.subject} ${sessionFull.date}：全员交齐 🎉`;
-    return `【作业未交名单】${sessionFull.className} ${sessionFull.subject} ${sessionFull.date}：` +
+    if (!absent.length) return `【作业登记】${sessionFull.className} ${sessionFull.subject}${t} ${sessionFull.date}：全员交齐 🎉`;
+    return `【作业未交名单】${sessionFull.className} ${sessionFull.subject}${t} ${sessionFull.date}：` +
       absent.map(s => s.name).join('、') + `（共${absent.length}人）`;
   }
 

@@ -311,8 +311,9 @@ api.post('/sessions', (req, res) => {
   const cls = classById(+req.body.classId);
   if (!cls) return res.status(400).json({ message: '请选择班级' });
   const subject = String(req.body.subject || '作业').trim() || '作业';
+  const title = String(req.body.title || '').trim().slice(0, 50);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(req.body.date) ? req.body.date : todayStr();
-  const sess = { id: nextId(), classId: cls.id, subject, date, createdAt: Date.now(), closed: false, submissions: {} };
+  const sess = { id: nextId(), classId: cls.id, subject, title, date, createdAt: Date.now(), closed: false, submissions: {} };
   db.sessions.push(sess);
   saveDb();
   broadcast({ type: 'sessions_changed' });
@@ -323,6 +324,16 @@ api.get('/sessions/:id', (req, res) => {
   const sess = sessionById(+req.params.id);
   if (!sess) return res.status(404).json({ message: '场次不存在' });
   res.json(sessionFull(sess));
+});
+
+// 修改场次标题（如「光的干涉」）
+api.post('/sessions/:id/title', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  sess.title = String(req.body.title || '').trim().slice(0, 50);
+  saveDb();
+  broadcast({ type: 'sessions_changed' });
+  res.json(sess);
 });
 
 function sessionFull(sess) {

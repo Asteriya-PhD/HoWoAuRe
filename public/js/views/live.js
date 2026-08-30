@@ -120,7 +120,7 @@
         const ws = XLSX.utils.aoa_to_sheet(rows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, '作业登记');
-        XLSX.writeFile(wb, `${this.session.className}-${this.session.subject}-${this.session.date}-作业登记.xlsx`);
+        XLSX.writeFile(wb, `${this.session.className}-${this.session.subject}${this.session.title ? '-' + this.session.title : ''}-${this.session.date}-作业登记.xlsx`);
       },
       async showPhoneQrFn() {
         const info = state.serverInfo;
@@ -141,6 +141,13 @@
         }
         this.showPhoneQr = true;
       },
+      async renameTitle() {
+        const t = prompt('作业标题（如：光的干涉），留空则清除：', this.session.title || '');
+        if (t === null) return;
+        await api('POST', `/sessions/${this.sid}/title`, { title: t });
+        this.session.title = t.trim().slice(0, 50);
+        toast('标题已更新', 'ok');
+      },
       async deleteSession() {
         if (!confirm('删除这场登记记录？（导出后再删更稳妥）')) return;
         await api('DELETE', `/sessions/${this.sid}`);
@@ -151,7 +158,8 @@
     <div class="page" v-if="session">
       <div class="card">
         <div class="row" style="margin-bottom:14px">
-          <h2 style="margin:0;font-size:20px">{{ session.className }} · {{ session.subject }} · {{ session.date }}</h2>
+          <h2 style="margin:0;font-size:20px">{{ session.className }} · {{ session.subject }}<template v-if="session.title"> ·「{{ session.title }}」</template> · {{ session.date }}</h2>
+          <button class="btn sm" style="padding:2px 8px" title="编辑标题" @click="renameTitle">✏️</button>
           <span class="tag" :class="session.closed ? 'blue' : 'green'">{{ session.closed ? '已截止（扫码记补交）' : '收集中' }}</span>
           <div class="spacer"></div>
           <button class="btn sm" @click="showPhoneQrFn">📱 手机扫码</button>
