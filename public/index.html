@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#16a34a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>作业扫码登记</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2316a34a'/%3E%3Cpath d='M28 52l14 14 30-32' stroke='%23fff' stroke-width='10' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="/vendor/vue.global.prod.js"></script>
+  <script src="/vendor/vue-router.global.prod.js"></script>
+  <script src="/vendor/jsQR.js"></script>
+  <script src="/vendor/qrcode-generator.js"></script>
+  <script>/* 二维码内容含中文姓名，必须按 UTF-8 编码 */
+    if (window.qrcode) qrcode.stringToBytes = qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8'] || (s => Array.from(new TextEncoder().encode(s)));</script>
+  <script src="/vendor/jspdf.umd.min.js"></script>
+  <script src="/vendor/xlsx.full.min.js"></script>
+
+  <script src="/js/qr-hunt.js"></script>
+  <script type="module">
+    // ZXing-C++ WASM：多码识别主引擎。加载后立刻把 wasm 路径固定到本地 vendor 目录
+    //（默认会去 jsdelivr CDN 下载，学校无外网会失败）。
+    import('/vendor/zxing/index.js').then(m => {
+      m.prepareZXingModule({ overrides: { locateFile: path => '/vendor/zxing/' + path } });
+      window.ZXingReader = m;
+    }).catch(() => { /* 加载失败时自动退回 jsQR 路径 */ });
+  </script>
+  <script src="/js/util.js"></script>
+  <script src="/js/audio.js"></script>
+  <script src="/js/store.js"></script>
+  <script src="/js/qr-pdf.js"></script>
+  <script src="/js/scan-engine.js"></script>
+  <script src="/js/views/roster.js"></script>
+  <script src="/js/views/qr.js"></script>
+  <script src="/js/views/home.js"></script>
+  <script src="/js/views/scan.js"></script>
+  <script src="/js/views/live.js"></script>
+  <script src="/js/views/grade.js"></script>
+  <script src="/js/views/history.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

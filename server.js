@@ -1,0 +1,498 @@
+/*
+ * 作业扫码登记 — 本地服务
+ * - HTTP(3000)：电脑端界面与 API（localhost 无需证书）
+ * - HTTPS(3443)：手机/平板扫码页（浏览器摄像头权限要求 HTTPS，使用自签证书）
+ * - WebSocket：扫码端、大屏看板实时同步
+ * - 数据：data/db.json 单文件，启动时自动备份
+ */
+'use strict';
+
+const MIN_NODE = 18;
+const [major] = process.versions.node.split('.').map(Number);
+if (major < MIN_NODE) {
+  console.error(`需要 Node.js ${MIN_NODE} 或更高版本（当前 ${process.versions.node}）`);
+  process.exit(1);
+}
+
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const http = require('http');
+const https = require('https');
+const express = require('express');
+const { WebSocketServer } = require('ws');
+const selfsigned = require('selfsigned');
+
+// ---------- 命令行参数 ----------
+function argNum(name, def) {
+  const i = process.argv.indexOf('--' + name);
+  return i > 0 && Number.isInteger(+process.argv[i + 1]) ? +process.argv[i + 1] : def;
+}
+function argStr(name) {
+  const i = process.argv.indexOf('--' + name);
+  return i > 0 && typeof process.argv[i + 1] === 'string' ? process.argv[i + 1] : null;
+}
+const HTTP_PORT_BASE = argNum('http', 3000);
+const HTTPS_PORT_BASE = argNum('https', 3443);
+// 桌面 App 模式用 --data-dir 把数据指到用户目录（.app 包内只读）；默认仍是项目内 data/
+const DATA_DIR = path.resolve(argStr('data-dir') || process.env.HWSCAN_DATA_DIR || path.join(__dirname, 'data'));
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+const DB_FILE = path.join(DATA_DIR, 'db.json');
+const CERT_KEY = path.join(DATA_DIR, 'key.pem');
+const CERT_CRT = path.join(DATA_DIR, 'cert.pem');
+
+// ---------- 数据存储 ----------
+let db = { counter: 0, classes: [], students: [], sessions: [] };
+let saveTimer = null;
+
+function loadDb() {
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  if (fs.existsSync(DB_FILE)) {
+    try {
+      db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+      for (const key of ['classes', 'students', 'sessions']) if (!Array.isArray(db[key])) db[key] = [];
+      if (!Number.isInteger(db.counter)) db.counter = 0;
+    } catch (e) {
+      const corrupt = DB_FILE + '.corrupt-' + Date.now();
+      fs.renameSync(DB_FILE, corrupt);
+      console.error(`数据文件损坏，已备份到 ${corrupt}，将以空数据启动`);
+    }
+    // 每次启动自动备份，保留最近 20 份
+    const backup = path.join(BACKUP_DIR, 'db-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json');
+    fs.copyFileSync(DB_FILE, backup);
+    const backups = fs.readdirSync(BACKUP_DIR).filter(f => f.startsWith('db-')).sort();
+    while (backups.length > 20) fs.unlinkSync(path.join(BACKUP_DIR, backups.shift()));
+  }
+}
+
+function saveDbNow() {
+  const tmp = DB_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(db));
+  fs.renameSync(tmp, DB_FILE);
+}
+
+function saveDb() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveDbNow, 150);
+}
+
+const nextId = () => ++db.counter;
+
+// WebSocket 广播（启动后替换为实际实现）
+let broadcast = () => {};
+
+// ---------- 工具 ----------
+function lanIps() {
+  const ips = [];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const ni of list || []) {
+      if (ni.family === 'IPv4' && !ni.internal) ips.push(ni.address);
+    }
+  }
+  return ips;
+}
+
+function todayStr() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// ---------- 自签证书（含局域网 IP SAN，IP 变化时自动重新生成） ----------
+function certSans() {
+  return [...new Set(['localhost', '127.0.0.1', ...lanIps()])];
+}
+
+async function loadCert() {
+  const sans = certSans();
+  if (fs.existsSync(CERT_KEY) && fs.existsSync(CERT_CRT)) {
+    try {
+      const crt = fs.readFileSync(CERT_CRT, 'utf8');
+      const meta = JSON.parse(fs.readFileSync(CERT_CRT + '.meta.json', 'utf8'));
+      if (meta.sans && meta.sans.length === sans.length && sans.every(ip => meta.sans.includes(ip))) {
+        return { key: fs.readFileSync(CERT_KEY, 'utf8'), cert: crt };
+      }
+      console.log('局域网 IP 已变化，重新生成 HTTPS 证书…');
+    } catch { /* 重新生成 */ }
+  }
+  const altNames = sans.map(ip => (/^\d+\.\d+\.\d+\.\d+$/.test(ip) ? { type: 7, ip } : { type: 2, value: ip }));
+  const pems = await selfsigned.generate([{ name: 'commonName', value: 'homework-scan.local' }], {
+    days: 3650,
+    keySize: 2048,
+    algorithm: 'sha256',
+    extensions: [{ name: 'subjectAltName', altNames }],
+  });
+  fs.writeFileSync(CERT_KEY, pems.private);
+  fs.writeFileSync(CERT_CRT, pems.cert);
+  fs.writeFileSync(CERT_CRT + '.meta.json', JSON.stringify({ sans }));
+  return { key: pems.private, cert: pems.cert };
+}
+
+// ---------- 业务逻辑 ----------
+function classById(id) { return db.classes.find(c => c.id === id); }
+function studentsOfClass(id) { return db.students.filter(s => s.classId === id); }
+function sessionById(id) { return db.sessions.find(s => s.id === id); }
+
+function parseCode(code) {
+  if (typeof code !== 'string') return null;
+  const parts = code.trim().split('|');
+  if (parts.length !== 4 || parts[0] !== 'HW') return null;
+  const classId = Number(parts[1]);
+  if (!Number.isInteger(classId) || !parts[2] || !parts[3]) return null;
+  return { classId, stuNo: parts[2], name: parts[3] };
+}
+
+function maxOrder(session) {
+  let max = 0;
+  for (const sub of Object.values(session.submissions)) if (sub.order > max) max = sub.order;
+  return max;
+}
+
+function sessionStats(session) {
+  const ids = Object.keys(session.submissions);
+  const submitted = ids.filter(id => session.submissions[id].status === 'ok').length;
+  const late = ids.length - submitted;
+  return { submitted, late, total: studentsOfClass(session.classId).length };
+}
+
+// 扫码登记：解析二维码 → 校验 → 去重 → 按顺序登记
+function doScan(session, code) {
+  const parsed = parseCode(code);
+  if (!parsed) return { ok: false, reason: 'bad_code', message: '无法识别的二维码（不是本系统的学生码）' };
+
+  const cls = classById(session.classId);
+  const classmates = studentsOfClass(session.classId);
+  let student = classmates.find(s => s.classId === parsed.classId && s.stuNo === parsed.stuNo);
+  let note = null;
+  if (!student) {
+    // 码与名单不符：尝试按姓名匹配（可能是旧贴纸/换学号）
+    const byName = classmates.filter(s => s.name === parsed.name);
+    if (byName.length === 1) {
+      student = byName[0];
+      note = 'stale_code';
+    } else {
+      return { ok: false, reason: 'not_found', message: `${parsed.name} 不在「${cls ? cls.name : '?'}」名单中` };
+    }
+  }
+
+  if (session.submissions[student.id]) {
+    const sub = session.submissions[student.id];
+    return { ok: true, duplicate: true, note, student, order: sub.order, status: sub.status, stats: sessionStats(session) };
+  }
+
+  const status = session.closed ? 'late' : 'ok';
+  const sub = { order: maxOrder(session) + 1, time: Date.now(), status, grade: null };
+  session.submissions[student.id] = sub;
+  saveDb();
+  return { ok: true, duplicate: false, note, student, order: sub.order, status: sub.status, time: sub.time, stats: sessionStats(session) };
+}
+
+// ---------- HTTP API ----------
+const app = express();
+app.use(express.json({ limit: '5mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+const api = express.Router();
+
+api.get('/server-info', (req, res) => {
+  res.json({ ips: lanIps(), httpPort, httpsPort, today: todayStr() });
+});
+
+api.get('/bootstrap', (req, res) => res.json({
+  ...db,
+  sessions: db.sessions.map(s => ({ ...s, stats: sessionStats(s) })),
+}));
+
+// ----- 班级 -----
+api.post('/classes', (req, res) => {
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ message: '班级名称不能为空' });
+  const cls = { id: nextId(), name, createdAt: Date.now() };
+  db.classes.push(cls);
+  saveDb();
+  broadcast({ type: 'classes_changed' });
+  res.json(cls);
+});
+
+api.delete('/classes/:id', (req, res) => {
+  const cls = classById(+req.params.id);
+  if (!cls) return res.status(404).json({ message: '班级不存在' });
+  db.classes = db.classes.filter(c => c.id !== cls.id);
+  db.students = db.students.filter(s => s.classId !== cls.id);
+  db.sessions = db.sessions.filter(s => s.classId !== cls.id);
+  saveDb();
+  broadcast({ type: 'classes_changed' });
+  res.json({ ok: true });
+});
+
+// ----- 学生 -----
+api.get('/classes/:id/students', (req, res) => {
+  res.json(studentsOfClass(+req.params.id));
+});
+
+api.post('/classes/:id/students', (req, res) => {
+  const cls = classById(+req.params.id);
+  if (!cls) return res.status(404).json({ message: '班级不存在' });
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ message: '姓名不能为空' });
+  const classmates = studentsOfClass(cls.id);
+  let stuNo = String(req.body.stuNo || '').trim();
+  if (!stuNo) stuNo = String(classmates.length + 1).padStart(2, '0');
+  while (classmates.some(s => s.stuNo === stuNo)) stuNo += '*';
+  const stu = { id: nextId(), classId: cls.id, name, stuNo };
+  db.students.push(stu);
+  saveDb();
+  broadcast({ type: 'students_changed', classId: cls.id });
+  res.json(stu);
+});
+
+api.put('/students/:id', (req, res) => {
+  const stu = db.students.find(s => s.id === +req.params.id);
+  if (!stu) return res.status(404).json({ message: '学生不存在' });
+  const name = String(req.body.name ?? stu.name).trim();
+  const stuNo = String(req.body.stuNo ?? stu.stuNo).trim();
+  if (!name) return res.status(400).json({ message: '姓名不能为空' });
+  if (db.students.some(s => s.classId === stu.classId && s.id !== stu.id && s.stuNo === stuNo)) {
+    return res.status(400).json({ message: `学号 ${stuNo} 已存在` });
+  }
+  Object.assign(stu, { name, stuNo });
+  saveDb();
+  broadcast({ type: 'students_changed', classId: stu.classId });
+  res.json(stu);
+});
+
+api.delete('/students/:id', (req, res) => {
+  const stu = db.students.find(s => s.id === +req.params.id);
+  if (!stu) return res.status(404).json({ message: '学生不存在' });
+  db.students = db.students.filter(s => s.id !== stu.id);
+  for (const sess of db.sessions) delete sess.submissions[stu.id];
+  saveDb();
+  broadcast({ type: 'students_changed', classId: stu.classId });
+  res.json({ ok: true });
+});
+
+// Excel 导入：{ students:[{name,stuNo}], mode:'append'|'replace' }
+api.post('/classes/:id/import', (req, res) => {
+  const cls = classById(+req.params.id);
+  if (!cls) return res.status(404).json({ message: '班级不存在' });
+  const rows = Array.isArray(req.body.students) ? req.body.students : [];
+  const cleaned = [];
+  const seen = new Set();
+  for (const row of rows) {
+    const name = String(row.name || '').trim().replace(/\s+/g, '');
+    if (!name) continue;
+    let stuNo = String(row.stuNo ?? '').trim();
+    if (!stuNo) stuNo = String(cleaned.length + 1).padStart(2, '0');
+    while (seen.has(stuNo)) stuNo += '*';
+    seen.add(stuNo);
+    cleaned.push({ name, stuNo });
+  }
+  if (!cleaned.length) return res.status(400).json({ message: '没有解析到有效名单（需包含"姓名"列）' });
+  if (req.body.mode === 'replace') db.students = db.students.filter(s => s.classId !== cls.id);
+  else {
+    // 追加时跳过「姓名+学号」完全重复的行
+    const existing = new Set(studentsOfClass(cls.id).map(s => s.name + '|' + s.stuNo));
+    for (const stu of cleaned) if (existing.has(stu.name + '|' + stu.stuNo)) stu.skip = true;
+  }
+  const added = [];
+  for (const stu of cleaned) {
+    if (stu.skip) continue;
+    const rec = { id: nextId(), classId: cls.id, name: stu.name, stuNo: stu.stuNo };
+    db.students.push(rec);
+    added.push(rec);
+  }
+  saveDb();
+  broadcast({ type: 'students_changed', classId: cls.id });
+  res.json({ added: added.length, total: studentsOfClass(cls.id).length });
+});
+
+// ----- 收作业场次 -----
+api.post('/sessions', (req, res) => {
+  const cls = classById(+req.body.classId);
+  if (!cls) return res.status(400).json({ message: '请选择班级' });
+  const subject = String(req.body.subject || '作业').trim() || '作业';
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(req.body.date) ? req.body.date : todayStr();
+  const sess = { id: nextId(), classId: cls.id, subject, date, createdAt: Date.now(), closed: false, submissions: {} };
+  db.sessions.push(sess);
+  saveDb();
+  broadcast({ type: 'sessions_changed' });
+  res.json(sess);
+});
+
+api.get('/sessions/:id', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  res.json(sessionFull(sess));
+});
+
+function sessionFull(sess) {
+  return {
+    ...sess,
+    stats: sessionStats(sess),
+    className: classById(sess.classId)?.name || '?',
+    students: studentsOfClass(sess.classId).map(s => ({
+      ...s, sub: sess.submissions[s.id] || null,
+    })),
+  };
+}
+
+// 手机扫码上报（也供演示模式调用）
+api.post('/sessions/:id/scan', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  const result = doScan(sess, req.body.code);
+  if (result.ok && !result.duplicate) {
+    broadcast({ type: 'scan', sid: sess.id, studentId: result.student.id, name: result.student.name, stuNo: result.student.stuNo, order: result.order, status: result.status, time: result.time, stats: result.stats });
+  }
+  res.json(result);
+});
+
+api.post('/sessions/:id/unsubmit', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  delete sess.submissions[+req.body.studentId];
+  saveDb();
+  broadcast({ type: 'unsubmit', sid: sess.id, studentId: +req.body.studentId, stats: sessionStats(sess) });
+  res.json({ ok: true, stats: sessionStats(sess) });
+});
+
+api.post('/sessions/:id/setlate', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  const stuId = +req.body.studentId;
+  const sub = sess.submissions[stuId];
+  if (!sub) return res.status(400).json({ message: '该学生尚未登记' });
+  sub.status = req.body.late ? 'late' : 'ok';
+  saveDb();
+  broadcast({ type: 'setlate', sid: sess.id, studentId: stuId, status: sub.status, stats: sessionStats(sess) });
+  res.json({ ok: true });
+});
+
+// 等级：单个 / 批量
+api.post('/sessions/:id/grade', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  const stuId = +req.body.studentId;
+  const grade = req.body.grade === null ? null : String(req.body.grade);
+  const sub = sess.submissions[stuId];
+  if (!sub) return res.status(400).json({ message: '该学生尚未登记，不能打等级' });
+  sub.grade = grade;
+  saveDb();
+  broadcast({ type: 'grade', sid: sess.id, studentId: stuId, grade });
+  res.json({ ok: true });
+});
+
+api.post('/sessions/:id/grade-batch', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  const ids = Array.isArray(req.body.studentIds) ? req.body.studentIds.map(Number) : [];
+  const grade = req.body.grade === null ? null : String(req.body.grade);
+  let n = 0;
+  for (const id of ids) {
+    const sub = sess.submissions[id];
+    if (sub) { sub.grade = grade; n++; }
+  }
+  saveDb();
+  broadcast({ type: 'grade_batch', sid: sess.id, studentIds: ids, grade });
+  res.json({ ok: true, count: n });
+});
+
+// 截止收集 / 重新打开
+api.post('/sessions/:id/closed', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  sess.closed = !!req.body.closed;
+  saveDb();
+  broadcast({ type: 'session_closed', sid: sess.id, closed: sess.closed });
+  res.json({ ok: true, closed: sess.closed });
+});
+
+api.delete('/sessions/:id', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  db.sessions = db.sessions.filter(s => s.id !== sess.id);
+  saveDb();
+  broadcast({ type: 'sessions_changed' });
+  res.json({ ok: true });
+});
+
+app.use('/api', api);
+app.use('/api', (req, res) => res.status(404).json({ message: '接口不存在' }));
+
+// ---------- 启动（端口冲突自动顺延） ----------
+function listen(server, port, label) {
+  return new Promise((resolve) => {
+    const onError = (e) => {
+      if (e.code === 'EADDRINUSE') resolve(null);
+      else { console.error(`${label} 启动失败:`, e.message); resolve(null); }
+    };
+    server.once('error', onError);
+    server.listen(port, '0.0.0.0', () => {
+      server.removeListener('error', onError);
+      resolve(port);
+    });
+  });
+}
+
+let httpPort = null, httpsPort = null, httpSrv, httpsSrv;
+
+async function start() {
+  loadDb();
+  const { key, cert } = await loadCert();
+  httpsSrv = https.createServer({ key, cert }, app);
+  httpSrv = http.createServer(app);
+
+  for (let i = 0; i < 10 && !httpPort; i++) httpPort = await listen(httpSrv, HTTP_PORT_BASE + i, 'HTTP');
+  for (let i = 0; i < 10 && !httpsPort; i++) httpsPort = await listen(httpsSrv, HTTPS_PORT_BASE + i, 'HTTPS');
+  if (!httpPort && !httpsPort) {
+    console.error(`端口 ${HTTP_PORT_BASE}~${HTTP_PORT_BASE + 9} 均被占用，无法启动。`);
+    process.exit(1);
+  }
+
+  // 桌面 App 模式：stdout 握手，把实际端口告诉壳进程（端口冲突自动顺延后壳需要真实端口）
+  if (process.env.HWSCAN_APP === '1') {
+    console.log('HWSCAN_READY ' + JSON.stringify({ httpPort, httpsPort }));
+  }
+
+  // 手机端必须走 HTTPS 才能用摄像头：非本机访问 HTTP 时自动跳转 HTTPS
+  httpSrv.on('request', (req, res) => {
+    if (httpsPort) {
+      const host = (req.headers.host || '').split(':')[0];
+      if (host !== 'localhost' && host !== '127.0.0.1' && !req.url.startsWith('/ws')) {
+        res.writeHead(302, { Location: `https://${host}:${httpsPort}${req.url}` });
+        res.end();
+      }
+    }
+  });
+
+  const wss = new WebSocketServer({ noServer: true });
+  const wsClients = new Set();
+  for (const srv of [httpSrv, httpsSrv]) {
+    srv.on('upgrade', (req, socket, head) => {
+      if (req.url === '/ws') wss.handleUpgrade(req, socket, head, ws => wsClients.add(ws));
+      else socket.destroy();
+    });
+  }
+  broadcast = (msg) => {
+    const data = JSON.stringify(msg);
+    for (const ws of wsClients) if (ws.readyState === 1) ws.send(data);
+  };
+
+  console.log('==============================================');
+  console.log('  作业扫码登记 已启动');
+  console.log(`  电脑端界面:  http://localhost:${httpPort}`);
+  if (httpsPort) {
+    console.log(`  手机扫码页:  https://${lanIps()[0] || '本机IP'}:${httpsPort}  （用电脑端页面上的二维码打开）`);
+    console.log('  手机首次打开提示"证书不受信任"属正常现象，点"继续访问/高级→继续"即可');
+  } else {
+    console.log('  HTTPS 端口被占用，手机扫码功能不可用，请换个端口重试');
+  }
+  console.log(`  数据文件:    ${DB_FILE}`);
+  console.log('  关闭本窗口或按 Ctrl+C 即停止服务');
+  console.log('==============================================');
+}
+
+process.on('SIGINT', () => { saveDbNow(); process.exit(0); });
+process.on('SIGTERM', () => { saveDbNow(); process.exit(0); });
+
+start();

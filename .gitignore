@@ -1,0 +1,15 @@
+# 依赖与构建产物
+node_modules/
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/schemas/
+
+# 本地数据（学生名单/登记记录/自签证书，含隐私不入库）
+data/
+
+# 工具目录
+.mimosa/
+
+# 系统杂项
+.DS_Store
+Thumbs.db
