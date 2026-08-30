@@ -14,6 +14,8 @@
         qrDataUrl: '',
         scanUrl: '',
         viewMode: 'stuNo',  // stuNo | order
+        editTitle: false,   // 标题就地编辑
+        titleDraft: '',
       };
     },
     computed: {
@@ -141,12 +143,23 @@
         }
         this.showPhoneQr = true;
       },
-      async renameTitle() {
-        const t = prompt('作业标题（如：光的干涉），留空则清除：', this.session.title || '');
-        if (t === null) return;
-        await api('POST', `/sessions/${this.sid}/title`, { title: t });
-        this.session.title = t.trim().slice(0, 50);
-        toast('标题已更新', 'ok');
+      editTitleStart() {
+        this.titleDraft = this.session.title || '';
+        this.editTitle = true;
+        this.$nextTick(() => {
+          const el = this.$el && this.$el.querySelector('.title-edit input');
+          if (el) { el.focus(); el.select(); }
+        });
+      },
+      async saveTitle() {
+        const t = this.titleDraft.trim().slice(0, 50);
+        try {
+          await api('POST', `/sessions/${this.sid}/title`, { title: t });
+          this.session.title = t;
+          this.editTitle = false;
+          toast(t ? '标题已更新' : '标题已清除', 'ok');
+          refresh();
+        } catch (e) { toast(e.message, 'err'); }
       },
       async deleteSession() {
         if (!confirm('删除这场登记记录？（导出后再删更稳妥）')) return;
@@ -158,8 +171,13 @@
     <div class="page" v-if="session">
       <div class="card">
         <div class="row" style="margin-bottom:14px">
-          <h2 style="margin:0;font-size:20px">{{ session.className }} · {{ session.subject }}<template v-if="session.title"> ·「{{ session.title }}」</template> · {{ session.date }}</h2>
-          <button class="btn sm" style="padding:2px 8px" title="编辑标题" @click="renameTitle">✏️</button>
+          <h2 v-if="!editTitle" style="margin:0;font-size:20px">{{ session.className }} · {{ session.subject }}<template v-if="session.title"> ·「{{ session.title }}」</template> · {{ session.date }}</h2>
+          <div v-else class="row title-edit" style="margin:0">
+            <input v-model="titleDraft" placeholder="作业标题，如：光的干涉（留空清除）" style="width:280px" @keyup.enter="saveTitle" @keyup.esc="editTitle=false">
+            <button class="btn sm primary" @click="saveTitle">保存</button>
+            <button class="btn sm" @click="editTitle=false">取消</button>
+          </div>
+          <button v-if="!editTitle" class="btn sm" style="padding:2px 8px" title="编辑标题" @click="editTitleStart">✏️</button>
           <span class="tag" :class="session.closed ? 'blue' : 'green'">{{ session.closed ? '已截止（扫码记补交）' : '收集中' }}</span>
           <div class="spacer"></div>
           <button class="btn sm" @click="showPhoneQrFn">📱 手机扫码</button>
