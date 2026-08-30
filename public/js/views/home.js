@@ -106,7 +106,7 @@
               <td>{{ (classById(s.classId)||{}).name }}</td>
               <td><b>{{ s.title || s.subject }}</b><span class="hint" v-if="s.title" style="margin-left:6px">{{ s.subject }}</span></td>
               <td>{{ s.date }}</td>
-              <td><span class="tag green">{{ s.submitted + s.late }}/{{ studentsOf(s.classId).length }}</span></td>
+              <td><span class="tag green">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ studentsOf(s.classId).length }}</span></td>
               <td>
                 <div class="row">
                   <button class="btn sm primary" @click="openQr(s.id)">📱 手机扫码</button>
@@ -126,7 +126,7 @@
           <tbody>
             <tr v-for="s in recentClosed" :key="s.id">
                 <td>{{ (classById(s.classId)||{}).name }} <b>{{ s.title || s.subject }}</b>{{ s.title ? '（' + s.subject + '）' : '' }} {{ s.date }}</td>
-              <td><span class="tag">{{ s.submitted + s.late }}/{{ studentsOf(s.classId).length }}</span></td>
+                <td><span class="tag">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ studentsOf(s.classId).length }}</span></td>
               <td>
                 <div class="row">
                   <router-link class="btn sm" :to="'/grade/'+s.id">批改</router-link>

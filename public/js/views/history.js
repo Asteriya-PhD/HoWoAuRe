@@ -76,7 +76,7 @@
               <td>{{ s.date }}</td>
               <td>{{ (classById(s.classId)||{}).name }}</td>
               <td><b>{{ s.title || s.subject }}</b><span class="hint" v-if="s.title" style="margin-left:6px">{{ s.subject }}</span></td>
-              <td><span class="tag" :class="s.submitted + s.late >= studentsOf(s.classId).length ? 'green' : ''">{{ s.submitted + s.late }}/{{ studentsOf(s.classId).length }}</span><span class="tag amber" v-if="s.late" style="margin-left:4px">补{{ s.late }}</span></td>
+              <td><span class="tag" :class="s.stats && s.stats.submitted + s.stats.late >= studentsOf(s.classId).length ? 'green' : ''">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ studentsOf(s.classId).length }}</span><span class="tag amber" v-if="s.stats && s.stats.late" style="margin-left:4px">补{{ s.stats.late }}</span></td>
               <td>{{ s.closed ? '已截止' : '收集中' }}</td>
               <td>
                 <div class="row">
