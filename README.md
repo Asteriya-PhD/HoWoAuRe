@@ -24,6 +24,15 @@
    - 首次运行会自动安装依赖（约 1 分钟）
    - 启动后会自动打开电脑端界面 `http://localhost:3000`
 
+### 分享给 Windows 同事：免安装绿色包（推荐）
+
+同事几乎都是 Windows、又不想折腾环境时，直接把打好的免安装包发过去：
+
+- 产物：**`dist/作业扫码登记_Windows免安装版.zip`**（约 35MB，微信/网盘可直接发）
+- 对方收到后：解压 → 双击包内 **`启动作业扫码.bat`** → 完成。**不需要装 Node.js、不需要联网**（包内自带便携版 node.exe 和全部依赖）
+- 数据存在包内 `data\` 文件夹，整个文件夹拷到 U 盘/换电脑，数据跟着走；包内附 `使用说明.txt`（防火墙放行、证书信任等给老师看的要点）
+- 自己重新打包：`node scripts/make-win-portable.mjs`（自动下载 Node v22 win-x64 便携版 → 装生产依赖 → 拷贝资源 → 打 zip，产物在 `dist/`）
+
 ## 二、开始使用（每学期/每天）
 
 1. **名单**：新建班级 → 导入 Excel/CSV（需有「姓名」列，学号列可选）或手动添加
@@ -72,7 +81,7 @@
 server.js               本地服务（HTTP 3000 / HTTPS 3443，端口被占用会自动顺延）
 public/                 前端页面（所有依赖库已本地化在 public/vendor，离线可用）
 data/db.json            全部数据（班级/名单/登记记录）
-scripts/                安装与测试脚本（含 tauri-prepare.mjs 打包准备）
+scripts/                安装与测试脚本（含 tauri-prepare.mjs 打包准备、make-win-portable.mjs Windows 免安装包）
 src-tauri/              macOS App 壳（Tauri 2）：main.rs 负责拉起内置 node 服务、管理窗口与菜单
 app-ui/                 App 启动等待页（服务就绪前显示）
 启动作业扫码.command/.bat 双击启动（脚本版）
