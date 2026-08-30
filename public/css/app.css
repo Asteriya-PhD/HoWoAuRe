@@ -136,6 +136,7 @@ table.list tr:hover td { background: #fafafa; }
 .gbtn.on-a3 { color: #fff; background: #f59e0b; border-color: #f59e0b; }
 .gbtn.on-f { color: #fff; background: #ef4444; border-color: #ef4444; }
 .kbd { display: inline-block; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; font-size: 12px; background: var(--bg); font-family: ui-monospace, monospace; }
+.title-edit input { width: 300px; font-size: 20px; font-weight: 700; padding: 4px 12px; }
 
 /* ---------- 扫码页（深色全屏） ---------- */
 .scan-page {

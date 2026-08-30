@@ -173,7 +173,7 @@
         <div class="row" style="margin-bottom:14px">
           <h2 v-if="!editTitle" style="margin:0;font-size:20px">{{ session.className }} · {{ session.subject }}<template v-if="session.title"> ·「{{ session.title }}」</template> · {{ session.date }}</h2>
           <div v-else class="row title-edit" style="margin:0">
-            <input v-model="titleDraft" placeholder="作业标题，如：光的干涉（留空清除）" style="width:280px" @keyup.enter="saveTitle" @keyup.esc="editTitle=false">
+            <input v-model="titleDraft" placeholder="作业标题，如：光的干涉（留空清除）" @keyup.enter="saveTitle" @keyup.esc="editTitle=false">
             <button class="btn sm primary" @click="saveTitle">保存</button>
             <button class="btn sm" @click="editTitle=false">取消</button>
           </div>
