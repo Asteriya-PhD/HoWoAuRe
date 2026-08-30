@@ -92,7 +92,7 @@
           <input v-model="subjectCustom" :placeholder="subject + ' / 自定义科目'" style="width:170px">
         </div>
         <div class="row" style="margin-bottom:12px">
-          <input v-model="title" placeholder="作业标题（可选），如：光的干涉" style="width:280px">
+          <input v-model="title" placeholder="作业标题（可选），如：光的干涉" style="width:280px;padding:11px 12px">
         </div>
         <button class="btn primary big" @click="createSession">✋ 开始收作业</button>
       </div>
