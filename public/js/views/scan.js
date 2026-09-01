@@ -32,6 +32,9 @@
         debugInfo: null,     // 诊断结果
         demoTimer: null,
         offSession: null,
+        torchCaps: false,    // 补光灯硬件能力（iPhone Safari 不支持，置灰避免死按钮）
+        showA2hs: false,     // 「添加到主屏幕」引导（仅 iPhone 浏览器内显示）
+        remainPoll: null,
       };
     },
     computed: {
@@ -52,6 +55,9 @@
       remainCount() { return this.remain.filter(s => !s.done).length; },
     },
     async created() {
+      this.showA2hs = /iP(hone|od)/.test(navigator.userAgent)
+        && navigator.standalone !== true
+        && !localStorage.getItem('hw.a2hs-dismissed');
       if (!this.sid) {
         this.phase = 'pick';
         return;
@@ -60,6 +66,10 @@
     },
     mounted() {
       this.offSession = onSessionEvent(this.sid, () => this.loadSession(true));
+      // WS 断连时（iPhone 对自签证书的 wss 常被拒）降级为 5 秒轮询，未交名单不至于失联
+      this.remainPoll = setInterval(() => {
+        if (this.sid && this.phase !== 'pick' && !state.wsOpen) this.loadSession(true);
+      }, 5000);
       window.addEventListener('beforeunload', this.cleanup);
       // ZXing WASM 异步加载，就绪后刷新引擎标签（window 属性不是响应式的）
       this.zxPoll = setInterval(() => {
@@ -70,6 +80,7 @@
       this.cleanup();
       if (this.offSession) this.offSession();
       clearInterval(this.zxPoll);
+      clearInterval(this.remainPoll);
       window.removeEventListener('beforeunload', this.cleanup);
     },
     unmounted() {
@@ -131,6 +142,7 @@
           await this.engine.start();
           this.camReady = true;
           this.canZoom = !!this.engine.zoomCaps;
+          this.torchCaps = this.engine.hasTorch();
           clearInterval(this.camWaitTimer);
           this.watchResolution();
         } catch (e) {
@@ -265,6 +277,10 @@
         this.torchOn = !!on;
         if (on === false && this.torchOn) this.torchOn = false;
       },
+      dismissA2hs() {
+        this.showA2hs = false;
+        localStorage.setItem('hw.a2hs-dismissed', '1');
+      },
       async switchCam() {
         try { await this.engine.switchCamera(); } catch (e) { toast('切换摄像头失败', 'err'); }
       },
@@ -346,6 +362,10 @@
     },
     template: `
     <div class="scan-page">
+      <div class="a2hs-bar" v-if="showA2hs">
+        <span>📱 建议：Safari「分享 → 添加到主屏幕」，之后从主屏图标打开——无地址栏、摄像头更稳定</span>
+        <button class="btn sm" @click="dismissA2hs">知道了</button>
+      </div>
       <!-- 选择场次 -->
       <div class="scan-start" v-if="phase==='pick'">
         <h1>选择要收作业的场次</h1>
@@ -425,7 +445,7 @@
                 <button class="ctrl-btn" style="width:40px;font-size:12px" @click="zoomBy(-0.5)" title="缩小">🔍－</button>
                 <button class="ctrl-btn" style="width:40px;font-size:12px" @click="zoomBy(0.5)" title="放大（对顽固码放大后停 1 秒）">{{ zoomLabel || '🔍＋' }}</button>
               </template>
-              <button class="ctrl-btn" :class="{on: torchOn}" @click="toggleTorch" title="补光灯">🔦</button>
+              <button class="ctrl-btn" :class="{on: torchOn}" :disabled="!torchCaps" @click="toggleTorch" :title="torchCaps ? '补光灯' : '此设备不支持网页补光灯（iPhone 请用室内灯光）'">🔦</button>
               <button class="ctrl-btn" @click="switchCam" title="切换摄像头">🔄</button>
               <button class="ctrl-btn" :class="{on: widePreview}" @click="widePreview = !widePreview" title="广角预览：显示完整画面，方便一次扫一排">🖥</button>
               <button class="ctrl-btn" @click="captureDebug" title="抓帧诊断：定格并分析当前画面">🐞</button>

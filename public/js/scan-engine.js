@@ -204,6 +204,12 @@
       return this.torchOn;
     }
 
+    hasTorch() {
+      const track = this.stream && this.stream.getVideoTracks()[0];
+      if (!track || !track.getCapabilities) return false;
+      return !!track.getCapabilities().torch;
+    }
+
     async tick() {
       if (!this.running) return;
       if (this.paused) { setTimeout(() => this.tick(), 150); return; }

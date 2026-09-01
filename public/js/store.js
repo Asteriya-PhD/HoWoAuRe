@@ -12,6 +12,7 @@
     students: [],
     sessions: [],
     classId: null,      // 当前选中班级（响应式，名单/工作台/二维码页共用，localStorage 仅做持久化）
+    wsOpen: false,      // WebSocket 连接状态（供视图决定是否降级轮询）
   });
 
   const sessionListeners = new Map(); // sid -> Set<fn>
@@ -50,13 +51,14 @@
   function connectWs() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     try { ws = new WebSocket(`${proto}://${location.host}/ws`); } catch { retry(); return; }
+    ws.onopen = () => { state.wsOpen = true; };
     ws.onmessage = (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch { return; }
       handle(msg);
     };
-    ws.onclose = retry;
-    ws.onerror = () => ws.close();
+    ws.onclose = () => { state.wsOpen = false; retry(); };
+    ws.onerror = () => { state.wsOpen = false; ws.close(); };
   }
 
   function retry() {

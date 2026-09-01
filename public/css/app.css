@@ -177,6 +177,9 @@ table.list tr:hover td { background: #fafafa; }
 .ctrl-btns { display: flex; gap: 10px; margin-top: 10px; justify-content: center; }
 .ctrl-btn { width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.12); color: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .ctrl-btn.on { background: var(--primary); border-color: var(--primary); }
+.ctrl-btn:disabled { opacity: .35; cursor: not-allowed; }
+.a2hs-bar { position: sticky; top: 8px; z-index: 60; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; background: rgba(250,204,21,.95); color: #1c1917; font-size: 13px; line-height: 1.4; border-radius: 10px; margin: 8px 10px 0; }
+.a2hs-bar .btn { flex: none; }
 
 .scan-start { margin: auto; max-width: 420px; padding: 24px; text-align: center; }
 .scan-start h1 { font-size: 22px; margin: 14px 0 8px; }
