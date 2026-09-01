@@ -187,6 +187,11 @@
           const r = await api('POST', `/sessions/${this.sid}/scan`, { code: code.data });
           if (r.ok && !r.duplicate) {
             this.seen.add(code.data);           // 成功才标记已处理
+            // 本地立即记账，不依赖 WS 回声（手机端 wss 自签证书可能被拒，WS 断了演示模式/未交名单也能推进）
+            if (this.session && this.session.submissions) {
+              this.session.submissions[r.student.id] = { order: r.order, time: r.time, status: r.status, grade: null };
+              this.session.stats = r.stats;
+            }
             ScanAudio.ok();
             if (navigator.vibrate) navigator.vibrate(60);
             this.flash('#22c55e');

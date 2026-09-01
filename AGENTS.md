@@ -63,7 +63,7 @@ HoWoAuRe/
 ## ANTI-PATTERNS (THIS PROJECT)
 
 - **禁止编辑 `public/vendor/`** —— 由 `npm run vendor` 生成，会被覆盖。升级库改 `scripts/vendor.js`。
-- **禁止直接编辑 `src-tauri/resources/` 和 `dist/` 里的副本** —— 由 `tauri-prepare.mjs` / `make-win-portable.mjs` 从根目录归拢生成。**改完 `public/` 或 `server.js` 必须重跑 `tauri-prepare.mjs`**（resources/ 是入库的）。
+- **禁止直接编辑 `src-tauri/resources/` 和 `dist/` 里的副本** —— 由 `tauri-prepare.mjs` / `make-win-portable.mjs` 从根目录归拢生成（resources/ 已被 src-tauri/.gitignore 忽略，不入库）。改完 `public/` 或 `server.js` 打包前必须重跑 `tauri-prepare.mjs`。
 - **禁止在前端用 `prompt()`/`alert()`/`confirm()`** —— Tauri 壳不支持（见 commit 640fb17，看板 ✏️ 弹窗因此失效），用就地编辑。
 - **禁止把 `data/` 内容入库** —— 学生名单含隐私，已 gitignore。
 - **jsQR 不用于一帧多码场景** —— 多码互相干扰（实测连第一个都解不出），多码走 ZXing WASM；不要把识别优先级改回去。

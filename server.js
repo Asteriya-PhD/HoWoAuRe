@@ -195,7 +195,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const api = express.Router();
 
 api.get('/server-info', (req, res) => {
-  res.json({ ips: lanIps(), httpPort, httpsPort, today: todayStr() });
+  res.json({ ips: lanIps(), httpPort, httpsPort, today: todayStr(), app: process.env.HWSCAN_APP === '1' });
 });
 
 api.get('/bootstrap', (req, res) => res.json({
@@ -304,6 +304,78 @@ api.post('/classes/:id/import', (req, res) => {
   saveDb();
   broadcast({ type: 'students_changed', classId: cls.id });
   res.json({ added: added.length, total: studentsOfClass(cls.id).length });
+});
+
+// ----- 数据备份/还原（导出文件就是 db.json 原始结构，App 版菜单「导入旧数据」可直接导入） -----
+// 导出：返回完整数据，同时在 backups/ 留一份带时间戳的副本
+api.get('/export', (req, res) => {
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    fs.writeFileSync(path.join(BACKUP_DIR, 'export-' + ts + '.json'), JSON.stringify(db));
+    res.set('X-Backup-Saved', '1');
+  } catch (e) {
+    console.error('导出副本写入失败:', e.message);
+  }
+  res.json(db);
+});
+
+// 导入：校验 → 落盘+备份当前数据 → 全量还原（保留原 id，二维码贴纸继续有效）
+api.post('/import', (req, res) => {
+  const d = req.body || {};
+  if (!Array.isArray(d.classes) || !Array.isArray(d.students)) {
+    return res.status(400).json({ message: '不是本系统的备份文件（缺少班级/名单数据）' });
+  }
+  // 三类数据共用一个 id 空间：全局去重 + 只收安全整数
+  const seenIds = new Set();
+  const uniqueId = (id) => {
+    if (!Number.isSafeInteger(id) || id <= 0 || seenIds.has(id)) return false;
+    seenIds.add(id);
+    return true;
+  };
+  // submissions 里的值只收非空对象，null/数组等脏数据直接丢弃（否则 sessionStats 会崩）
+  const cleanSubs = (subs) => {
+    const out = {};
+    for (const [k, v] of Object.entries(subs)) {
+      if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = v;
+    }
+    return out;
+  };
+  const classes = d.classes
+    .filter(c => c && typeof c.name === 'string' && c.name.trim() && uniqueId(c.id))
+    .map(c => ({ id: c.id, name: c.name.trim(), createdAt: Number.isFinite(c.createdAt) ? c.createdAt : Date.now() }));
+  const students = d.students
+    .filter(s => s && Number.isInteger(s.classId) && typeof s.name === 'string' && s.name.trim() && uniqueId(s.id))
+    .map(s => ({ id: s.id, classId: s.classId, name: s.name.trim(), stuNo: String(s.stuNo ?? '') }));
+  const sessions = (Array.isArray(d.sessions) ? d.sessions : [])
+    .filter(s => s && Number.isInteger(s.classId) && s.submissions && typeof s.submissions === 'object' && !Array.isArray(s.submissions) && uniqueId(s.id))
+    .map(s => ({
+      id: s.id,
+      classId: s.classId,
+      subject: typeof s.subject === 'string' ? s.subject : '',
+      title: typeof s.title === 'string' ? s.title.slice(0, 50) : '',
+      date: /^\d{4}-\d{2}-\d{2}$/.test(s.date || '') ? s.date : '',
+      createdAt: Number.isFinite(s.createdAt) ? s.createdAt : Date.now(),
+      closed: !!s.closed,
+      submissions: cleanSubs(s.submissions),
+    }));
+  if (!classes.length) return res.status(400).json({ message: '备份文件里没有班级数据' });
+  // counter 至少取全部 id 的最大值，避免还原后新建班级/学生撞 id
+  let counter = Number.isSafeInteger(d.counter) && d.counter > 0 ? d.counter : 0;
+  for (const list of [classes, students, sessions]) {
+    for (const it of list) if (it.id > counter) counter = it.id;
+  }
+  counter = Math.min(counter, Number.MAX_SAFE_INTEGER - 1);
+  // 先把防抖中的最新数据落盘，"导入前备份"才是完整的
+  clearTimeout(saveTimer);
+  saveDbNow();
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, 'db-before-import-' + ts + '.json'));
+  db = { counter, classes, students, sessions };
+  saveDbNow();
+  broadcast({ type: 'db_changed' });
+  res.json({ ok: true, classes: classes.length, students: students.length, sessions: sessions.length });
 });
 
 // ----- 收作业场次 -----

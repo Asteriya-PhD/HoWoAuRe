@@ -10,7 +10,7 @@ src-tauri/
 │                    #   kill_stale_servers / 菜单（含导入旧 db.json）/ 窗口管理
 ├── tauri.conf.json  # frontendDist=../app-ui；externalBin=binaries/hwscan-node；
 │                    #   resources 指向 server.js+public+node_modules；identifier=com.homeworkscan.local
-├── resources/       # tauri-prepare.mjs 的产物（server.js + public/ + node_modules 副本，已入库）
+├── resources/       # tauri-prepare.mjs 的产物（server.js + public/ + node_modules 副本，gitignored）
 ├── binaries/        # node sidecar 二进制（gitignored，tauri-prepare 生成）
 ├── app-ui → ../app-ui 是 frontendDist（启动等待页，服务就绪前显示）
 └── target/          # cargo 产物（gitignored）；bundle/dmg/ 里是最终 .dmg
@@ -30,7 +30,7 @@ src-tauri/
 
 - Cargo release profile：`strip=true, lto=true, codegen-units=1`，edition 2021。
 - 前端资源永远从根目录 `public/` 归拢而来，打包前跑 `node scripts/tauri-prepare.mjs`。
-- `resources/` 是**入库**的产物副本 —— 改了源必须重新归拢并提交，否则 App 里跑的是旧前端。
+- `resources/` 是 gitignored 的产物副本 —— 改了源必须在打包前重新归拢，否则 App 里跑的是旧前端。
 
 ## ANTI-PATTERNS
 

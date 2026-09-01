@@ -19,7 +19,7 @@
       };
     },
     computed: {
-      classId() { return Number(localStorage.getItem('hw.class')) || (state.classes[0] && state.classes[0].id) || null; },
+      classId() { return state.classId; },
       cls() { return classById(this.classId); },
       students() { return this.classId ? studentsOf(this.classId) : []; },
       allSelected() { return this.students.length > 0 && this.students.every(s => this.selected.has(s.id)); },

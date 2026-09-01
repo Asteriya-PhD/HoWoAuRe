@@ -7,10 +7,11 @@
 
   const state = reactive({
     loaded: false,
-    serverInfo: null,   // {ips, httpPort, httpsPort}
+    serverInfo: null,   // {ips, httpPort, httpsPort, app}
     classes: [],
     students: [],
     sessions: [],
+    classId: null,      // 当前选中班级（响应式，名单/工作台/二维码页共用，localStorage 仅做持久化）
   });
 
   const sessionListeners = new Map(); // sid -> Set<fn>
@@ -20,10 +21,21 @@
     state.classes = db.classes;
     state.students = db.students;
     state.sessions = db.sessions;
+    // 选中班级失效（被删/数据还原后 id 变化）时回退到第一个班
+    if (!state.classes.some(c => c.id === state.classId)) {
+      state.classId = (state.classes[0] && state.classes[0].id) || null;
+      if (state.classId) localStorage.setItem('hw.class', String(state.classId));
+    }
     state.loaded = true;
   }
 
+  function setClass(id) {
+    state.classId = id;
+    if (id) localStorage.setItem('hw.class', String(id));
+  }
+
   async function init() {
+    state.classId = Number(localStorage.getItem('hw.class')) || null;
     try {
       state.serverInfo = await api('GET', '/server-info');
     } catch { /* 界面仍可用 */ }
@@ -53,6 +65,12 @@
   }
 
   function handle(msg) {
+    // db_changed：除全局刷新外，还要通知所有持有本地场次状态的视图（大屏/批改/扫码页）
+    if (msg.type === 'db_changed') {
+      refresh();
+      for (const set of sessionListeners.values()) for (const fn of set) fn(msg);
+      return;
+    }
     if (['classes_changed', 'students_changed', 'sessions_changed'].includes(msg.type)) {
       refresh();
       return;
@@ -84,5 +102,5 @@
       absent.map(s => s.name).join('、') + `（共${absent.length}人）`;
   }
 
-  window.Store = { state, init, refresh, onSessionEvent, studentsOf, classById, absentText, connectWs };
+  window.Store = { state, init, refresh, onSessionEvent, studentsOf, classById, absentText, connectWs, setClass };
 })();

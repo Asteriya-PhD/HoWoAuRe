@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const { api, toast, registerView } = window.App;
-  const { state, refresh, studentsOf, classById } = window.Store;
+  const { state, refresh, studentsOf, classById, setClass } = window.Store;
 
   const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'];
 
@@ -20,7 +20,10 @@
       };
     },
     computed: {
-      classId() { return Number(localStorage.getItem('hw.class')) || (state.classes[0] && state.classes[0].id) || null; },
+      classId: {
+        get() { return state.classId; },
+        set(v) { setClass(v); },
+      },
       cls() { return classById(this.classId); },
       openSessions() {
         return state.sessions.filter(s => !s.closed).sort((a, b) => b.id - a.id);

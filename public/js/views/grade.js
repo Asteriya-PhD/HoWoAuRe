@@ -12,6 +12,7 @@
     data() {
       return {
         session: null,
+        missing: false,
         off: null,
         cursor: 0,           // 当前批改位置（列表下标）
         checked: new Set(),  // 批量选择的 studentId
@@ -32,7 +33,9 @@
     async created() {
       await this.load();
       this.off = onSessionEvent(this.sid, m => {
-        if (['grade', 'grade_batch', 'scan', 'unsubmit', 'setlate'].includes(m.type)) this.load();
+        // 数据还原后，旧的选择/撤销历史对还原出的数据不再成立
+        if (m.type === 'db_changed') { this.checked.clear(); this.undoStack.length = 0; }
+        if (['grade', 'grade_batch', 'scan', 'unsubmit', 'setlate', 'db_changed'].includes(m.type)) this.load();
       });
       window.addEventListener('keydown', this.onKey);
     },
@@ -42,7 +45,14 @@
     },
     methods: {
       async load() {
-        try { this.session = await api('GET', `/sessions/${this.sid}`); } catch (e) { toast(e.message, 'err'); }
+        try {
+          this.session = await api('GET', `/sessions/${this.sid}`);
+          this.missing = false;
+          if (this.cursor > this.rows.length - 1) this.cursor = Math.max(this.rows.length - 1, 0);
+        } catch (e) {
+          this.missing = true;
+          toast(e.message, 'err');
+        }
       },
       onKey(ev) {
         if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA') return;
@@ -162,6 +172,7 @@
         <div class="empty" v-if="!rows.length">还没有人登记，先去扫码</div>
       </div>
     </div>
+    <div class="page" v-else-if="missing"><div class="empty">场次不存在（可能已被「数据还原」覆盖）　<router-link to="/history">返回历史</router-link></div></div>
     <div class="page" v-else><div class="empty">加载中…</div></div>`,
     setup() { return { BTNCls }; },
   });
