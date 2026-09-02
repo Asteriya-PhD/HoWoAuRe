@@ -104,12 +104,23 @@
   // ---- 设置壳：左侧分区导航 + 右侧子视图 ----
   registerView('settings-view', {
     data() {
-      return { sections: [
-        { key: 'appearance', name: '外观',     icon: 'palette' },
-        { key: 'roster',     name: '班级名单', icon: 'users' },
-        { key: 'qr',         name: '二维码',   icon: 'qr' },
-        { key: 'data',       name: '数据备份', icon: 'database' },
-      ] };
+      const reg = window.App.registry;
+      return {
+        sections: [
+          { key: 'appearance', name: '外观',     icon: 'palette' },
+          { key: 'roster',     name: '班级名单', icon: 'users' },
+          { key: 'qr',         name: '二维码',   icon: 'qr' },
+          { key: 'data',       name: '数据备份', icon: 'database' },
+        ],
+        // 子视图组件对象：data() 里随 settings-view 实例一起返回，
+        // 模板用 <component :is="..."> 动态渲染
+        subComponents: {
+          appearance: reg['settings-appearance-view'],
+          roster:     reg['roster-view'],
+          qr:         reg['qr-view'],
+          data:       reg['data-view'],
+        },
+      };
     },
     computed: {
       section() {
@@ -155,10 +166,7 @@
           </div>
         </nav>
         <div class="settings-main">
-          <settings-appearance-view v-if="section==='appearance'" />
-          <roster-view v-else-if="section==='roster'" :embedded="true" />
-          <qr-view v-else-if="section==='qr'" :embedded="true" />
-          <data-view v-else-if="section==='data'" />
+          <component :is="subComponents[section]" :embedded="section!=='appearance' && section!=='data'" />
         </div>
       </div>
     </div>`,
