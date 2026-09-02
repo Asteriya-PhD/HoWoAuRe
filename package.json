@@ -7,7 +7,7 @@
     "test": "node scripts/api-test.mjs",
     "start": "node server.js",
     "vendor": "node scripts/vendor.js",
-    "sync-app": "rsync -a --delete public/ 'src-tauri/target/release/bundle/macos/作业扫码登记.app/Contents/Resources/public/'"
+    "sync-app": "rsync -a --delete public/ 'src-tauri/target/release/bundle/macos/作业扫码登记.app/Contents/Resources/public/' && if [ -d '/Applications/作业扫码登记.app' ]; then rsync -a --delete public/ '/Applications/作业扫码登记.app/Contents/Resources/public/'; fi"
   },
   "keywords": [],
   "author": "",

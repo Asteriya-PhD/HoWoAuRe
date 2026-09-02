@@ -34,8 +34,8 @@
       qr.make();
       maxModules = Math.max(maxModules, qr.getModuleCount());
     }
-    // 每格 ≥1.17mm；基线 30mm，最密 34 格时 40mm（同时压缩文字行高度）
-    return { size: Math.min(40, Math.max(30, Math.ceil(maxModules * 1.17))), maxModules };
+    // 常规 25 模块 → 20mm（每格 0.8mm）；密码头班升到 24mm
+    return { size: maxModules > 25 ? 24 : 20, maxModules };
   }
 
   // 在 (x, y) 处绘制 sizeMm 大小的二维码（黑色矢量方块）
@@ -101,11 +101,10 @@
     let y = M;
 
     if (layout === 'large') {
-      // 1份/人：3列×5行，码尺寸按班级最密的码自适应；码下静区 8mm（约 4 模块）
-      const cols = 3, cw = (PW - 2 * M) / 3, ch = (PH - 2 * M) / 5;
-      const { size: qBase, maxModules } = classCodeSize(cls, students);
-      const dense = qBase > 30;           // 长学号等密码头：省略副行文字，码放大到 36mm
-      const q = dense ? Math.min(qBase, 36) : Math.min(qBase, 30);
+      // 1份/人：4列×7行，每页 28 人；码 20mm（密码头班 24mm），格内余量足够静区
+      const cols = 4, cw = (PW - 2 * M) / 4, ch = (PH - 2 * M) / 7;
+      const { size: q, maxModules } = classCodeSize(cls, students);
+      const dense = maxModules > 25;      // 长学号等密码头：省略副行文字
       let col = 0;
       for (const stu of students) {
         y = col === 0 ? pageBreak(y, ch) : y;
@@ -115,9 +114,9 @@
         doc.setLineWidth(0.2);
         doc.rect(x, y, cw, ch);
         const text = payload(cls, stu);
-        drawQr(doc, text, x + (cw - q) / 2, y + 4, q);
-        drawLabel(doc, stu.name, x + 14, y + q + 8, cw - 28, 8, { bold: true });
-        if (!dense) drawLabel(doc, `${cls.name} · ${stu.stuNo}`, x + 10, y + q + 16.5, cw - 20, 4.5, { gray: true });
+        drawQr(doc, text, x + (cw - q) / 2, y + 2, q);
+        drawLabel(doc, stu.name, x + 12, y + q + 4, cw - 24, 7, { bold: true });
+        if (!dense) drawLabel(doc, `${cls.name} · ${stu.stuNo}`, x + 10, y + q + 12, cw - 20, 4.5, { gray: true });
         col++;
         if (col >= cols) { col = 0; y += ch; }
       }
@@ -128,8 +127,8 @@
         doc.text(`注：本班学号较长，二维码已自动放大（密度 ${maxModules} 模块）`, PW / 2, PH - 4, { align: 'center' });
       }
     } else if (layout === 'row6') {
-      // 1行/人（6个）：24mm 码 + 4.5mm 间隙（保证横向静区），行高 40mm，每页 7 行
-      const per = 6, q = 24, gap = 4.5, rh = 40;
+      // 1行/人（6个）：18mm 码 + 4mm 间隙（≥4 模块静区），行高 30mm，每页 9 行
+      const per = 6, q = 18, gap = 4, rh = 30;
       for (const stu of students) {
         y = pageBreak(y, rh);
         const text = payload(cls, stu);
@@ -143,16 +142,16 @@
         y += rh;
       }
     } else {
-      // 1页/人（36个）：6×6 网格，25mm 码 + 3mm 间隙
-      const per = 6, q = 25, gap = 3;
+      // 1页/人（96个）：8列×12行，18mm 码 + 3mm 间隙
+      const per = 8, rows = 12, q = 18, gap = 3;
       for (const stu of students) {
-        y = pageBreak(y, q * per + gap * (per - 1) + 14);
+        y = pageBreak(y, 14 + rows * (q + gap));
         drawLabel(doc, `${cls.name} ${stu.name}（学号 ${stu.stuNo}）`, M, y, PW - 2 * M, 6, { gray: true });
         y += 8;
         const total = per * q + (per - 1) * gap;
         const x0 = (PW - total) / 2;
         const text = payload(cls, stu);
-        for (let r = 0; r < per; r++) {
+        for (let r = 0; r < rows; r++) {
           if (y + q > PH - M) break;
           for (let c = 0; c < per; c++) drawQr(doc, text, x0 + c * (q + gap), y, q);
           y += q + gap;

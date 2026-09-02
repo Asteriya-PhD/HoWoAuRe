@@ -29,6 +29,7 @@
       },
       gradedCount() { return this.rows.filter(r => r.sub && r.sub.grade).length; },
       allChecked() { return this.rows.length > 0 && this.rows.every(r => this.checked.has(r.id)); },
+      ungradedRows() { return this.rows.filter(r => !r.sub.grade); },
     },
     async created() {
       await this.load();
@@ -111,6 +112,10 @@
         if (this.allChecked) this.checked.clear();
         else this.rows.forEach(r => this.checked.add(r.id));
       },
+      // 分摞批改：上一摞已全部定档后，新扫进来的一摞恰好就是未批改的
+      selectUngraded() {
+        this.checked = new Set(this.ungradedRows.map(r => r.id));
+      },
       clearChecked() { this.checked.clear(); },
       async gradeAllUngraded(grade) {
         const ids = this.rows.filter(r => !r.sub.grade).map(r => r.id);
@@ -158,6 +163,8 @@
         <div class="grade-row head">
           <input type="checkbox" style="zoom:1.3" :checked="allChecked" @change="toggleSelectAll">
           <span class="gname" style="cursor:pointer;user-select:none" @click="toggleSelectAll">全选 <span class="hint" v-if="checked.size">（已选 {{ checked.size }} / {{ rows.length }}）</span></span>
+          <button class="btn sm" :disabled="!ungradedRows.length" @click="selectUngraded">只选未批改（{{ ungradedRows.length }}）</button>
+          <span class="hint">分摞批改：扫完一摞先点这里，再按 1/2/3/4 整摞定档</span>
         </div>
         <div v-for="(row, i) in rows" :key="row.id">
           <div class="grade-row" :class="{current: i===cursor}">

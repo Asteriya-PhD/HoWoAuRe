@@ -1,4 +1,4 @@
-// 版式验证：按新「1份/人」几何（3列×5行、28mm 码、4mm+ 静区）在 A4 比例画布上
+// 版式验证：按「1份/人」几何（4列×7行、20mm 码、4mm+ 静区）在 A4 比例画布上
 // 复现打印效果，模拟手机拍摄（整页入镜 + 只拍中间两行两种取景），
 // 验证 ZXing 多遍策略能把 10 个码全部识别——尤其是页面中部的码。
 // 运行：node scripts/layout-test.mjs
@@ -14,8 +14,8 @@ qrcode.stringToBytes = s => Array.from(new TextEncoder().encode(s));
 
 // ---- 与 qr-pdf.js 保持一致的新版几何（单位 mm） ----
 const PW = 210, PH = 297, M = 10;
-const COLS = 3, Q = 28;
-const CW = (PW - 2 * M) / COLS, CH = (PH - 2 * M) / 5;
+const COLS = 4, ROWS = 7, Q = 20;
+const CW = (PW - 2 * M) / COLS, CH = (PH - 2 * M) / ROWS;
 const students = ['王晓明', '李思思', '张伟', '刘洋', '陈静', '杨帆', '赵磊', '黄丽', '周杰', '吴敏'];
 
 function makeMatrix(text) {
@@ -49,7 +49,7 @@ sheet.fill(245, 245, 245);
 const layout = [];
 for (let i = 0; i < students.length; i++) {
   const col = i % COLS, row = Math.floor(i / COLS);
-  const x = M + col * CW + (CW - Q) / 2, y = M + row * CH + 4;
+  const x = M + col * CW + (CW - Q) / 2, y = M + row * CH + 2;
   layout.push({
     text: `HW|15|${String(i + 1).padStart(2, '0')}|${students[i]}`,
     cx: Math.round((x + Q / 2) * pxPerMm),
@@ -86,7 +86,7 @@ for (let y = 0; y < bandH; y++) {
   const sy = Math.min(PHx - 1, bandY0 + y);
   band.data.set(sheet.data.subarray(sy * PWx * 4, sy * PWx * 4 + PWx * 4), y * PWx * 4);
 }
-const bandRow = [1, 2].flatMap(row => [0, 1, 2].map(c => row * 3 + c));
+const bandRow = [1, 2].flatMap(row => [0, 1, 2, 3].map(c => row * COLS + c)).filter(i => i < layout.length);
 const bandWant = new Set(bandRow.map(i => layout[i].text));
 const r2 = await zx(band.imageData());
 const h2 = report('  常规一遍', r2.r ?? r2, bandWant);
