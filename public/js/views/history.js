@@ -5,7 +5,7 @@
   const { state, studentsOf, classById } = window.Store;
 
   registerView('history-view', {
-    data() { return { filterClass: '' }; },
+    data() { return { filterClass: '', armDeleteId: null }; },
     computed: {
       list() {
         let list = state.sessions.slice().sort((a, b) => b.id - a.id);
@@ -15,8 +15,15 @@
     },
     methods: {
       studentsOf, classById,
+      // 就地二次确认（Tauri 壳不支持 confirm()）：第一次点进入待确认态，3 秒后自动复位
       async remove(s) {
-        if (!confirm(`删除 ${s.date} ${s.title || s.subject} 的登记记录？`)) return;
+        if (this.armDeleteId !== s.id) {
+          this.armDeleteId = s.id;
+          toast('再点一次「删除」确认，3 秒内有效', '', 2800);
+          setTimeout(() => { if (this.armDeleteId === s.id) this.armDeleteId = null; }, 3000);
+          return;
+        }
+        this.armDeleteId = null;
         await api('DELETE', `/sessions/${s.id}`);
         toast('已删除');
       },
@@ -85,7 +92,7 @@
                 <div class="row">
                   <router-link class="btn sm" :to="'/live/'+s.id">查看</router-link>
                   <router-link class="btn sm" :to="'/grade/'+s.id">批改</router-link>
-                  <button class="btn sm danger" @click="remove(s)">删除</button>
+                  <button class="btn sm danger" :class="{armed: armDeleteId===s.id}" @click="remove(s)">{{ armDeleteId===s.id ? '确认删除' : '删除' }}</button>
                 </div>
               </td>
             </tr>

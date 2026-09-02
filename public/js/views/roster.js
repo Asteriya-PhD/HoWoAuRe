@@ -15,6 +15,8 @@
         importMode: 'append',
         busy: false,
         filter: '',
+        armDeleteClass: false,   // 就地二次确认（Tauri 壳不支持 confirm()）
+        armStudentId: null,
       };
     },
     computed: {
@@ -41,9 +43,17 @@
         if (created) this.currentClass = created.id;
         toast(`已创建「${name}」`, 'ok');
       },
+      // 就地二次确认：第一次点进入待确认态（3 秒后自动复位），再点才真删
+      armThen(title, armed, setArmed) {
+        if (armed) return true;
+        setArmed(true);
+        toast(`再点一次「${title}」确认，3 秒内有效`, '', 2800);
+        setTimeout(() => setArmed(false), 3000);
+        return false;
+      },
       async deleteClass() {
         if (!this.cls) return;
-        if (!confirm(`确定删除「${this.cls.name}」？其名单与登记记录将一并删除。`)) return;
+        if (!this.armThen(`删除「${this.cls.name}」`, this.armDeleteClass, v => this.armDeleteClass = v)) return;
         await api('DELETE', `/classes/${this.classId}`);
         await refresh();
         toast('已删除');
@@ -64,7 +74,7 @@
         }
       },
       async deleteStudent(stu) {
-        if (!confirm(`删除学生「${stu.name}」？`)) return;
+        if (!this.armThen(`删除「${stu.name}」`, this.armStudentId === stu.id, v => this.armStudentId = v ? stu.id : null)) return;
         await api('DELETE', `/students/${stu.id}`);
         refresh();
       },
@@ -115,7 +125,7 @@
           <select v-model.number="currentClass" style="min-width:180px">
             <option v-for="c in state.classes" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
-          <button class="btn sm danger" @click="deleteClass" :disabled="!cls">删除班级</button>
+          <button class="btn sm danger" :class="{armed: armDeleteClass}" @click="deleteClass" :disabled="!cls">{{ armDeleteClass ? '再点一次确认删除' : '删除班级' }}</button>
           <div class="spacer"></div>
           <input v-model="newClassName" placeholder="新班级名称，如：三年二班" @keyup.enter="addClass" style="width:210px">
           <button class="btn primary" @click="addClass">
@@ -171,7 +181,7 @@
             <tr v-for="s in students" :key="s.id">
               <td><input v-model="s.stuNo" style="width:60px;padding:4px 8px" @change="saveStudent(s)"></td>
               <td><input v-model="s.name" style="width:120px;padding:4px 8px" @change="saveStudent(s)"></td>
-              <td><button class="btn sm danger" @click="deleteStudent(s)">删除</button></td>
+              <td><button class="btn sm danger" :class="{armed: armStudentId===s.id}" @click="deleteStudent(s)">{{ armStudentId===s.id ? '确认删除' : '删除' }}</button></td>
             </tr>
           </tbody>
         </table>

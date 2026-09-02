@@ -10,8 +10,8 @@
    ========================================================================== */
 
 /* ---------- 字体（手绘主题唯一需要的外部资源） ---------- */
-@import url('/vendor/fonts/lxgwwenkailite-regular.css') (prefers-reduced-motion: no-preference);
-@import url('/vendor/fonts/lxgwwenkailite-bold.css') (prefers-reduced-motion: no-preference);
+@import url('/vendor/fonts/lxgwwenkailite-regular.css');
+@import url('/vendor/fonts/lxgwwenkailite-bold.css');
 
 /* ---------- 基础 token（默认 = 手绘 + 暖橙） ---------- */
 :root {

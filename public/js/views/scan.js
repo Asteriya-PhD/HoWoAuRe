@@ -11,6 +11,7 @@
         phase: 'loading',    // loading | pick | ready | running | error
         errorMsg: '',
         showRemain: false,
+        armMarkId: null,     // 手动登记的就地二次确认（记录待确认的学生 id）
         msgs: [],            // 最近识别提示 [{key, cls, name, text}]
         flashColor: '',
         flashKey: 0,
@@ -341,9 +342,16 @@
         if (ok) this.zoomLabel = this.engine.zoom.toFixed(1) + '×';
       },
       // 手动兜底：个别码反复扫不进时，点未交名单里的名字直接登记
+      // 就地二次确认（Tauri 壳不支持 confirm()）：第一次点进入待确认态，3 秒后自动复位
       async manualMark(s) {
         if (s.done) return;
-        if (!confirm(`手动登记「${s.name}」已交？（码扫不出时的兜底，请确认本子确实在）`)) return;
+        if (this.armMarkId !== s.id) {
+          this.armMarkId = s.id;
+          this.pushMsg('dup', s.name, '再点一次确认登记（请确认本子确实在）');
+          setTimeout(() => { if (this.armMarkId === s.id) this.armMarkId = null; }, 3000);
+          return;
+        }
+        this.armMarkId = null;
         const cls = classById(this.session.classId);
         await this.report({ data: window.QrPdf.payload(cls, s), manual: true });
       },

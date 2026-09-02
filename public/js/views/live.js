@@ -16,6 +16,8 @@
         viewMode: 'stuNo',  // stuNo | order
         editTitle: false,   // 标题就地编辑
         titleDraft: '',
+        armDelete: false,        // 删除场次的就地二次确认
+        absentFallback: '',      // 复制未交名单失败时的手动复制兜底
       };
     },
     computed: {
@@ -103,7 +105,8 @@
           await navigator.clipboard.writeText(text);
           toast('未交名单已复制，可直接粘贴到家长群', 'ok');
         } catch {
-          prompt('请手动复制：', text);
+          // 剪贴板不可用（如非 HTTPS 上下文）：弹层展示全文，手动复制（Tauri 壳不支持 prompt()）
+          this.absentFallback = text;
         }
       },
       exportExcel() {
@@ -162,7 +165,14 @@
         } catch (e) { toast(e.message, 'err'); }
       },
       async deleteSession() {
-        if (!confirm('删除这场登记记录？（导出后再删更稳妥）')) return;
+        // 就地二次确认（Tauri 壳不支持 confirm()）：第一次点进入待确认态，3 秒后自动复位
+        if (!this.armDelete) {
+          this.armDelete = true;
+          toast('再点一次「删除」确认，3 秒内有效', '', 2800);
+          setTimeout(() => this.armDelete = false, 3000);
+          return;
+        }
+        this.armDelete = false;
         await api('DELETE', `/sessions/${this.sid}`);
         this.$router.push('/');
       },
@@ -187,7 +197,7 @@
             手机扫码
           </button>
           <button class="btn sm" @click="toggleClosed">{{ session.closed ? '重新打开' : '截止收集' }}</button>
-          <button class="btn sm danger" @click="deleteSession">删除</button>
+          <button class="btn sm danger" :class="{armed: armDelete}" @click="deleteSession">{{ armDelete ? '再点一次确认删除' : '删除' }}</button>
         </div>
 
         <div class="row" style="align-items:flex-start">
@@ -267,6 +277,18 @@
           <div class="qr-white"><img v-if="qrDataUrl" :src="qrDataUrl" style="width:230px;height:230px"></div>
           <p class="hint" style="text-align:left;margin-top:10px">首次打开：iPhone 点「显示详细信息 → 访问此网站」；Android 点「高级 → 继续前往」，然后允许摄像头。</p>
           <p class="hint" style="word-break:break-all">{{ scanUrl }}</p>
+        </div>
+      </div>
+
+      <!-- 剪贴板不可用时的手动复制兜底 -->
+      <div v-if="absentFallback" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px" @click.self="absentFallback=''">
+        <div class="card" style="max-width:480px;width:100%">
+          <h2>复制未交名单</h2>
+          <p class="hint" style="margin-bottom:10px">自动复制失败，请长按/选中下面文字手动复制：</p>
+          <textarea :value="absentFallback" readonly style="width:100%;height:110px;padding:10px 12px;font-size:14px;resize:vertical"></textarea>
+          <div class="row" style="margin-top:12px;justify-content:flex-end">
+            <button class="btn" @click="absentFallback=''">关闭</button>
+          </div>
         </div>
       </div>
     </div>

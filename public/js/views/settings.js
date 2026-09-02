@@ -7,47 +7,43 @@
   // 数据区也持久化当前活动 section，避免刷新跳回第一个
   const SECTION_KEY = 'hw.settings.section';
 
-  const THEMES = [
-    {
-      key: 'handdrawn', name: '手绘漫画', desc: '奶油纸+贴纸阴影，霞鹜文楷字体，亲和可爱',
-      previewClass: 'h-preview',
-    },
-    {
-      key: 'warm', name: '暖橙编辑风', desc: '陶土橙+衬线标题，安静克制，像工具书',
-      previewClass: 'w-preview',
-    },
-    {
-      key: 'glass', name: 'iOS 毛玻璃', desc: '彩色光斑+磨砂卡片+玻璃分段控件，现代轻盈',
-      previewClass: 'g-preview',
-    },
-  ];
+  // 主题/配色定义的唯一来源在 index.html 的 window.HW_APPEARANCE
+  const A = window.HW_APPEARANCE || {
+    defaultTheme: 'handdrawn', defaultPalette: 'orange',
+    themes: ['handdrawn', 'warm', 'glass'],
+    palettes: [{ key: 'orange', hex: '#f97316', rgb: '249,115,22' }],
+  };
 
-  const PALETTES = [
-    { key: 'orange', name: '暖橙',  rgb: '249,115,22' },
-    { key: 'grass',  name: '草原绿', rgb: '34,197,94'  },
-    { key: 'sky',    name: '晴空蓝', rgb: '37,99,235'  },
-    { key: 'berry',  name: '莓红',  rgb: '225,29,72'  },
-    { key: 'grape',  name: '葡萄紫', rgb: '139,92,246' },
-  ];
+  const THEME_META = {
+    handdrawn: { name: '手绘漫画', desc: '奶油纸+贴纸阴影，霞鹜文楷字体，亲和可爱' },
+    warm:      { name: '暖橙编辑风', desc: '陶土橙+衬线标题，安静克制，像工具书' },
+    glass:     { name: 'iOS 毛玻璃', desc: '彩色光斑+磨砂卡片+玻璃分段控件，现代轻盈' },
+  };
+  const PALETTE_NAMES = { orange: '暖橙', grass: '草原绿', sky: '晴空蓝', berry: '莓红', grape: '葡萄紫' };
+
+  const THEMES = A.themes.map(key => ({ key, ...THEME_META[key] }));
+  const PALETTES = A.palettes.map(p => ({ ...p, name: PALETTE_NAMES[p.key] || p.key }));
 
   function readAppearance() {
     try {
       const v = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
       return {
-        theme: THEMES.some(t => t.key === v.theme) ? v.theme : 'handdrawn',
-        palette: PALETTES.some(p => p.key === v.palette) ? v.palette : 'orange',
+        theme: THEMES.some(t => t.key === v.theme) ? v.theme : A.defaultTheme,
+        palette: PALETTES.some(p => p.key === v.palette) ? v.palette : A.defaultPalette,
       };
-    } catch { return { theme: 'handdrawn', palette: 'orange' }; }
+    } catch { return { theme: A.defaultTheme, palette: A.defaultPalette }; }
   }
 
   function applyAppearance(theme, palette) {
     const html = document.documentElement;
     html.setAttribute('data-theme', theme);
     html.setAttribute('data-palette', palette);
-    // 同步浏览器地址栏颜色（手机 PWA 体验）
-    const rgb = (PALETTES.find(p => p.key === palette) || PALETTES[0]).rgb;
+    // 同步浏览器地址栏颜色与 favicon（手机 PWA / 标签页体验）
+    const pal = PALETTES.find(p => p.key === palette) || PALETTES[0];
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', 'rgb(' + rgb + ')');
+    if (meta) meta.setAttribute('content', 'rgb(' + pal.rgb + ')');
+    const icon = document.querySelector('link[rel="icon"]');
+    if (icon) icon.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='" + encodeURIComponent(pal.hex) + "'/%3E%3Cpath d='M28 52l14 14 30-32' stroke='%23fff' stroke-width='10' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E";
   }
 
   function persistAppearance(theme, palette) {
@@ -77,10 +73,10 @@
       <div class="card">
         <h2>主题风格</h2>
         <div class="theme-grid">
-          <div v-for="t in themes" :key="t.key" class="theme-card" :class="{on: theme===t.key}" :data-preview="t.previewClass" @click="pickTheme(t.key)">
+          <div v-for="t in themes" :key="t.key" class="theme-card" :class="{on: theme===t.key}" @click="pickTheme(t.key)">
             <div class="name">{{ t.name }}</div>
             <div class="desc">{{ t.desc }}</div>
-            <div class="preview" :class="t.previewClass">
+            <div class="preview">
               <div class="pill"></div>
               <div class="square"></div>
               <div class="square green"></div>

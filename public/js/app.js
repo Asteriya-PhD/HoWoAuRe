@@ -26,16 +26,12 @@
   const Root = {
     computed: {
       bare() { return this.$route.meta && this.$route.meta.bare; },
-      paletteRgb() {
-        const a = (window.Settings && window.Settings.readAppearance) || (() => ({ palette: 'orange' }));
-        return a().palette;
-      },
     },
     template: `
     <div>
       <nav class="topnav" v-if="!bare">
         <span class="brand">
-          <svg viewBox="0 0 100 100"><rect width="100" height="100" rx="20" :fill="'rgb(var(--brand-rgb))'"/><path d="M28 52l14 14 30-32" stroke="#fff" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" rx="20"/><path d="M28 52l14 14 30-32" stroke="#fff" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span>作业扫码登记</span>
         </span>
         <router-link to="/">工作台</router-link>

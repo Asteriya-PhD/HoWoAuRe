@@ -19,6 +19,7 @@ body { font-size: 15px; line-height: 1.55; }
 .topnav {
   position: sticky; top: 0; z-index: 50;
   display: flex; align-items: center; gap: 4px;
+  background: var(--bg); /* 回退：不支持 color-mix 的旧 WKWebView（macOS 11~12） */
   background: color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: var(--border-w) solid var(--ink);
@@ -30,6 +31,8 @@ body { font-size: 15px; line-height: 1.55; }
 }
 .brand { font-weight: 700; font-size: 17px; margin-right: 18px; display: flex; align-items: center; gap: 9px; letter-spacing: .02em; }
 .brand svg { width: 24px; height: 24px; }
+/* 品牌底色跟配色走：写在 CSS 规则里而非 SVG 属性，规避 WebKit 对属性中 var() 的兼容坑 */
+.brand svg rect { fill: rgb(var(--brand-rgb)); }
 .topnav a {
   color: var(--ink-2); text-decoration: none;
   padding: 6px 14px; border-radius: var(--radius-pill);
@@ -97,6 +100,8 @@ body { font-size: 15px; line-height: 1.55; }
 .btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: var(--shadow-sm); }
 .btn svg { width: 15px; height: 15px; flex: none; }
 .btn.big svg { width: 19px; height: 19px; }
+/* 就地二次确认的待确认态：提示这是危险操作的最后一击 */
+.btn.armed { background: var(--danger); border-color: var(--danger-d); color: #fff; font-weight: 700; }
 
 /* ---------- 输入/选择 ---------- */
 input[type=text], input[type=date], input[type=number], input:not([type]), select {
@@ -106,12 +111,18 @@ input[type=text], input[type=date], input[type=number], input:not([type]), selec
 }
 input::placeholder, input::-webkit-input-placeholder { color: var(--ink-3); }
 input:focus, select:focus { box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .25); }
+textarea {
+  border: var(--border-w) solid var(--ink); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--ink); outline: none; font-family: inherit; font-size: 14px;
+}
+textarea:focus { box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .25); }
 [data-theme="warm"] input, [data-theme="warm"] select,
 [data-theme="glass"] input, [data-theme="glass"] select { border-color: var(--line-2); }
 
 /* ---------- 标签/徽章 ---------- */
 .tag { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--radius-pill); padding: 2px 11px; font-size: 12px; font-weight: 600; }
-.tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .75; }
+/* 圆点装饰只给彩色状态标签，中性计数标签（如「6/9」「已批 12/30」）不带 */
+.tag.green::before, .tag.amber::before, .tag.red::before, .tag.blue::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .75; }
 .tag.green { background: var(--ok-bg); color: var(--ok-d); }
 .tag.amber { background: var(--warn-bg); color: var(--warn-d); }
 .tag.red   { background: var(--danger-bg); color: var(--danger-d); }
@@ -134,8 +145,8 @@ table.list tr:last-child td { border-bottom: none; }
 
 .empty { text-align: center; color: var(--ink-2); padding: 40px 0; }
 .hint { font-size: 13px; color: var(--ink-2); }
-.hint-box { background: var(--ok-bg); border: 1px solid color-mix(in srgb, var(--ok) 50%, transparent); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 13px; color: var(--ok-d); }
-.warn-box { background: var(--warn-bg); border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 13px; color: var(--warn-d); }
+.hint-box { background: var(--ok-bg); border: 1px solid var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 13px; color: var(--ok-d); }
+.warn-box { background: var(--warn-bg); border: 1px solid var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 13px; color: var(--warn-d); }
 [data-theme="handdrawn"] .hint-box, [data-theme="handdrawn"] .warn-box { border-width: var(--border-w); }
 
 /* ---------- 工作台 chips ---------- */
