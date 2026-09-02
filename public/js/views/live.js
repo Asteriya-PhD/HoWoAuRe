@@ -177,10 +177,15 @@
             <button class="btn sm primary" @click="saveTitle">保存</button>
             <button class="btn sm" @click="editTitle=false">取消</button>
           </div>
-          <button v-if="!editTitle" class="btn sm" style="padding:2px 8px" title="编辑标题" @click="editTitleStart">✏️</button>
+          <button v-if="!editTitle" class="btn sm" style="padding:2px 8px" title="编辑标题" @click="editTitleStart">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:14px;height:14px"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>
+          </button>
           <span class="tag" :class="session.closed ? 'blue' : 'green'">{{ session.closed ? '已截止（扫码记补交）' : '收集中' }}</span>
           <div class="spacer"></div>
-          <button class="btn sm" @click="showPhoneQrFn">📱 手机扫码</button>
+          <button class="btn sm" @click="showPhoneQrFn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18.5h2"/></svg>
+            手机扫码
+          </button>
           <button class="btn sm" @click="toggleClosed">{{ session.closed ? '重新打开' : '截止收集' }}</button>
           <button class="btn sm danger" @click="deleteSession">删除</button>
         </div>
@@ -201,9 +206,18 @@
           <div class="spacer"></div>
           <div class="row" style="flex-direction:column;align-items:stretch">
             <div class="row">
-              <button class="btn primary" @click="$router.push('/grade/'+sid)">✏️ 按扫码顺序批改</button>
-              <button class="btn" @click="copyAbsent">📋 复制未交名单</button>
-              <button class="btn" @click="exportExcel">⬇ 导出 Excel</button>
+              <button class="btn primary" @click="$router.push('/grade/'+sid)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>
+                按扫码顺序批改
+              </button>
+              <button class="btn" @click="copyAbsent">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                复制未交名单
+              </button>
+              <button class="btn" @click="exportExcel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+                导出 Excel
+              </button>
             </div>
             <div class="hint" style="margin-top:6px">批改页与这里的数据实时同步</div>
           </div>
@@ -215,7 +229,7 @@
           <span class="chip" :class="{on: viewMode==='stuNo'}" @click="viewMode='stuNo'">按学号</span>
           <span class="chip" :class="{on: viewMode==='order'}" @click="viewMode='order'">按扫码顺序</span>
           <div class="spacer"></div>
-          <span class="hint">🟩 已交 · 🟨 补交 · 点学生卡可撤销/标记</span>
+          <span class="hint"><span class="legend-dot ok"></span> 已交 · <span class="legend-dot late"></span> 补交 · 点学生卡可撤销/标记</span>
         </div>
         <div class="stu-grid">
           <div v-for="s in studentsView" :key="s.id" class="stu-card" :class="s.sub ? (s.sub.status==='late' ? 'late' : 'ok') : ''" @click="picked = s">
@@ -235,7 +249,7 @@
             {{ picked.sub ? (picked.sub.status==='late' ? '补交 · 顺序#'+picked.sub.order : '已交 · 顺序#'+picked.sub.order) : '未交' }}
           </p>
           <div class="row" style="justify-content:center">
-            <button class="btn primary" v-if="!picked.sub" @click="act('mark')">✔ 标记已交（补登记）</button>
+            <button class="btn primary" v-if="!picked.sub" @click="act('mark')">✓ 标记已交（补登记）</button>
             <button class="btn" v-if="picked.sub" @click="act('unsubmit')">撤销登记</button>
             <button class="btn" v-if="picked.sub" @click="act('late')">{{ picked.sub.status==='late' ? '改为已交' : '标记补交' }}</button>
           </div>
@@ -246,7 +260,10 @@
       <!-- 手机入口 -->
       <div v-if="showPhoneQr" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center" @click.self="showPhoneQr=false">
         <div class="card" style="text-align:center;max-width:400px">
-          <h2 style="justify-content:center">📱 手机扫这个码开始收作业</h2>
+          <h2 style="justify-content:center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:20px;height:20px"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18.5h2"/></svg>
+            手机扫这个码开始收作业
+          </h2>
           <div class="qr-white"><img v-if="qrDataUrl" :src="qrDataUrl" style="width:230px;height:230px"></div>
           <p class="hint" style="text-align:left;margin-top:10px">首次打开：iPhone 点「显示详细信息 → 访问此网站」；Android 点「高级 → 继续前往」，然后允许摄像头。</p>
           <p class="hint" style="word-break:break-all">{{ scanUrl }}</p>

@@ -97,13 +97,16 @@
         <div class="row" style="margin-bottom:12px">
           <input v-model="title" placeholder="作业标题（可选），如：光的干涉" style="width:280px;padding:11px 12px">
         </div>
-        <button class="btn primary big" @click="createSession">✋ 开始收作业</button>
+        <button class="btn primary big" @click="createSession">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          开始收作业
+        </button>
       </div>
 
       <div class="card" v-if="openSessions.length">
         <h2>收集中 <span class="sub">扫完点「截止」，之后的扫码自动记为补交</span></h2>
         <table class="list">
-          <thead><tr><th>班级</th><th>科目 / 标题</th><th>日期</th><th>进度</th><th style="min-width:280px"></th></tr></thead>
+          <thead><tr><th>班级</th><th>科目 / 标题</th><th>日期</th><th>进度</th><th style="min-width:300px"></th></tr></thead>
           <tbody>
             <tr v-for="s in openSessions" :key="s.id">
               <td>{{ (classById(s.classId)||{}).name }}</td>
@@ -112,9 +115,18 @@
               <td><span class="tag green">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ studentsOf(s.classId).length }}</span></td>
               <td>
                 <div class="row">
-                  <button class="btn sm primary" @click="openQr(s.id)">📱 手机扫码</button>
-                  <router-link class="btn sm" :to="'/live/'+s.id">🖥 看板</router-link>
-                  <router-link class="btn sm" :to="'/grade/'+s.id">✏️ 批改</router-link>
+                  <button class="btn sm primary" @click="openQr(s.id)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18.5h2"/></svg>
+                    手机扫码
+                  </button>
+                  <router-link class="btn sm" :to="'/live/'+s.id">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                    看板
+                  </router-link>
+                  <router-link class="btn sm" :to="'/grade/'+s.id">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>
+                    批改
+                  </router-link>
                   <button class="btn sm" @click="api('POST','/sessions/'+s.id+'/closed',{closed:true}).then(refresh)">截止</button>
                 </div>
               </td>
@@ -144,7 +156,10 @@
       <!-- 手机扫码入口弹层 -->
       <div v-if="showQrFor" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px" @click.self="showQrFor=null">
         <div class="card" style="max-width:420px;width:100%;text-align:center">
-          <h2 style="justify-content:center">📱 用手机扫这个码</h2>
+          <h2 style="justify-content:center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:20px;height:20px"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18.5h2"/></svg>
+            用手机扫这个码
+          </h2>
           <div class="qr-white"><img v-if="qrDataUrl" :src="qrDataUrl" style="width:240px;height:240px"></div>
           <p class="hint" style="margin-top:12px;text-align:left">
             1. 手机与电脑连<b>同一个 WiFi</b><br>

@@ -1,17 +1,18 @@
 // 名单管理：班级增删 + 学生名单编辑 + Excel 导入
+// 可独立作为路由页（/roster，旧链接兼容），也可嵌在设置壳里（settings 路由）
 (function () {
   'use strict';
-  const { api, toast, registerView, parseRosterSheet, download } = window.App;
+  const { api, toast, registerView } = window.App;
   const { state, refresh, studentsOf, classById, setClass } = window.Store;
 
   registerView('roster-view', {
+    props: { embedded: { type: Boolean, default: false } },
     data() {
       return {
         newClassName: '',
         newStudent: { name: '', stuNo: '' },
-        importPreview: null, // {rows:[{name,stuNo}], fileName}
+        importPreview: null,
         importMode: 'append',
-        restorePreview: null, // {fileName, data, classes, students, sessions}
         busy: false,
         filter: '',
       };
@@ -67,8 +68,6 @@
         await api('DELETE', `/students/${stu.id}`);
         refresh();
       },
-
-      // ---- Excel 导入 ----
       async onImportFile(ev) {
         const file = ev.target.files[0];
         ev.target.value = '';
@@ -76,7 +75,7 @@
         try {
           const buf = await file.arrayBuffer();
           const wb = window.XLSX.read(buf, { type: 'array' });
-          const rows = parseRosterSheet(wb.Sheets[wb.SheetNames[0]]);
+          const rows = window.App.parseRosterSheet(wb.Sheets[wb.SheetNames[0]]);
           if (!rows.length) return toast('没有解析到名单：文件需有「姓名」列表头', 'err');
           this.importPreview = { rows, fileName: file.name };
           this.importMode = 'append';
@@ -104,78 +103,12 @@
           await refresh();
         } catch (e) {
           toast(e.message, 'err');
-        } finally {
-          this.busy = false;
-        }
+        } finally { this.busy = false; }
       },
-
-      // ---- 数据备份/还原 ----
-      async exportData() {
-        this.busy = true;
-        try {
-          const res = await fetch('/api/export');
-          if (!res.ok) throw new Error(`请求失败 (${res.status})`);
-          const data = await res.json();
-          const savedCopy = res.headers.get('X-Backup-Saved') === '1';
-          const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-          const d = new Date();
-          const p = n => String(n).padStart(2, '0');
-          const fname = `作业扫码备份-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
-          const inApp = state.serverInfo && state.serverInfo.app;
-          if (inApp) {
-            toast(savedCopy
-              ? '备份已保存到数据文件夹的 backups/（菜单「打开数据文件夹」可查看）'
-              : '备份已生成，但写入数据文件夹失败，请检查磁盘', savedCopy ? 'ok' : 'err', 4000);
-          } else {
-            download(blob, fname);
-            toast(`已下载备份文件 ${fname}`, 'ok', 4000);
-          }
-        } catch (e) {
-          toast(e.message, 'err');
-        } finally {
-          this.busy = false;
-        }
-      },
-      onRestoreFile(ev) {
-        const file = ev.target.files[0];
-        ev.target.value = '';
-        if (!file || this.busy) return;
-        file.text().then(text => {
-          const data = JSON.parse(text.replace(/^\uFEFF/, ''));
-          if (!data || !Array.isArray(data.classes) || !Array.isArray(data.students)) {
-            throw new Error('不是本系统的备份文件（缺少班级/名单数据）');
-          }
-          this.restorePreview = {
-            fileName: file.name,
-            data,
-            classes: data.classes.length,
-            students: data.students.length,
-            sessions: (data.sessions || []).length,
-          };
-        }).catch(e => {
-          toast(e instanceof SyntaxError
-            ? `「${file.name}」不是 JSON 备份文件，请使用「导出备份」生成的文件`
-            : '无法读取备份文件：' + e.message, 'err');
-        });
-      },
-      async confirmRestore() {
-        const preview = this.restorePreview;
-        if (!preview) return;
-        this.busy = true;
-        try {
-          const r = await api('POST', '/import', preview.data);
-          if (this.restorePreview === preview) this.restorePreview = null;
-          toast(`已还原：${r.classes} 个班级、${r.students} 名学生、${r.sessions} 个场次，班级与学号保持不变`, 'ok', 4000);
-          await refresh();
-        } catch (e) {
-          toast(e.message, 'err');
-        } finally {
-          this.busy = false;
-        }
-      },
+      cancelImport() { this.importPreview = null; },
     },
     template: `
-    <div class="page">
+    <div :class="embedded ? '' : 'page'">
       <div class="card">
         <h2>班级 <span class="sub">一个老师可管理多个班</span></h2>
         <div class="row" style="margin-bottom:12px">
@@ -185,14 +118,18 @@
           <button class="btn sm danger" @click="deleteClass" :disabled="!cls">删除班级</button>
           <div class="spacer"></div>
           <input v-model="newClassName" placeholder="新班级名称，如：三年二班" @keyup.enter="addClass" style="width:210px">
-          <button class="btn primary" @click="addClass">＋ 新建班级</button>
+          <button class="btn primary" @click="addClass">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            新建班级
+          </button>
         </div>
 
         <div class="row" v-if="cls">
           <input v-model="filter" placeholder="搜索姓名/学号" style="width:180px">
           <div class="spacer"></div>
           <label class="btn">
-            📥 导入 Excel/CSV
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+            导入 Excel/CSV
             <input type="file" accept=".xlsx,.xls,.csv" style="display:none" @change="onImportFile">
           </label>
           <button class="btn" @click="downloadTemplate">下载模板</button>
@@ -214,7 +151,7 @@
         </div>
         <div class="row">
           <button class="btn primary" :disabled="busy" @click="confirmImport">确认导入</button>
-          <button class="btn" @click="importPreview=null">取消</button>
+          <button class="btn" @click="cancelImport">取消</button>
         </div>
       </div>
 
@@ -223,7 +160,10 @@
         <div class="row" style="margin-bottom:10px">
           <input v-model="newStudent.stuNo" placeholder="学号(可空)" style="width:110px">
           <input v-model="newStudent.name" placeholder="姓名" @keyup.enter="addStudent" style="width:140px">
-          <button class="btn primary sm" @click="addStudent">＋ 添加</button>
+          <button class="btn primary sm" @click="addStudent">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            添加
+          </button>
         </div>
         <table class="list" v-if="students.length">
           <thead><tr><th style="width:70px">学号</th><th>姓名</th><th style="width:90px"></th></tr></thead>
@@ -240,29 +180,6 @@
 
       <div class="empty" v-else-if="state.loaded && !state.classes.length">
         先创建一个班级，再导入学生名单
-      </div>
-      <div class="card" v-if="restorePreview">
-        <h2>导入备份 <span class="sub">{{ restorePreview.fileName }}</span></h2>
-        <div style="margin-bottom:10px">
-          将覆盖当前全部数据，还原为：<b>{{ restorePreview.classes }}</b> 个班级、<b>{{ restorePreview.students }}</b> 名学生、<b>{{ restorePreview.sessions }}</b> 个收作业场次。<br>
-          班级编号与学号保持原样，<b>已打印的二维码贴纸继续有效</b>（导入前会自动备份当前数据）。
-        </div>
-        <div class="row">
-          <button class="btn primary" :disabled="busy" @click="confirmRestore">导入并覆盖</button>
-          <button class="btn" @click="restorePreview=null">取消</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>💾 数据备份 <span class="sub">班级、名单、登记记录一键存本地</span></h2>
-        <div class="row" style="margin-bottom:10px">
-          <button class="btn" @click="exportData" :disabled="busy">⬇️ 导出备份</button>
-          <label class="btn">
-            📥 导入备份
-            <input type="file" accept=".json,application/json" style="display:none" @change="onRestoreFile">
-          </label>
-        </div>
-        <div class="hint">换电脑、重装系统或更新 App 前，先「导出备份」存一份文件；之后「导入备份」即可完整还原，<b>不需要重新导入 Excel</b>（重新导入会生成新班级，贴在作业本上的二维码就作废了）。桌面 App 版也可用菜单「导入旧数据（db.json）…」导入同样的备份文件。</div>
       </div>
     </div>`,
     setup() { return { state, studentsOf, refresh }; },

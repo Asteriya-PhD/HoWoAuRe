@@ -1,0 +1,152 @@
+/* ==========================================================================
+   主题与配色双层 token
+   --------------------------------------------------------------------------
+   - data-theme  控制"形状质感"：圆角、边框粗细、阴影风格、字体栈、背景纹理
+   - data-palette 控制"主色调"：--primary 系列（橙/绿/蓝/莓红/紫）
+   使用：
+     <html data-theme="handdrawn" data-palette="orange">   <!-- 默认 -->
+     <html data-theme="warm" data-palette="blue">
+     <html data-theme="glass" data-palette="grape">
+   ========================================================================== */
+
+/* ---------- 字体（手绘主题唯一需要的外部资源） ---------- */
+@import url('/vendor/fonts/lxgwwenkailite-regular.css') (prefers-reduced-motion: no-preference);
+@import url('/vendor/fonts/lxgwwenkailite-bold.css') (prefers-reduced-motion: no-preference);
+
+/* ---------- 基础 token（默认 = 手绘 + 暖橙） ---------- */
+:root {
+  /* 字体栈：手绘主题专属，其余主题也会用这一组作 fallback */
+  --font-hand: "LXGW WenKai Lite", "LXGW WenKai", "Kaiti SC", "KaiTi", 楷体, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* 状态色（三主题通用） */
+  --ok: #22c55e;     --ok-d: #15803d;     --ok-bg: #e7f8ec;
+  --warn: #f59e0b;   --warn-d: #b45309;   --warn-bg: #fdf3d8;
+  --danger: #ef4444; --danger-d: #b91c1c; --danger-bg: #fee9e9;
+  --info: #3b82f6;   --info-d: #1d4ed8;   --info-bg: #dbeafe;
+}
+
+/* ==========================================================================
+   三套主题（形状 / 质感 / 字体）
+   ========================================================================== */
+
+/* ---------- A 手绘漫画（默认） ---------- */
+[data-theme="handdrawn"] {
+  --primary: #f97316;     --primary-d: #c2570c;     --primary-l: #fff1d9;     --primary-bg: #ffe8cc;
+  --ink: #3f3229;         --ink-2: #8c7a6b;          --ink-3: #b3a594;
+  --bg: #fff8ec;          --card: #fffdf7;           --line: #eadbc4;         --line-2: #d9c8af;
+  --shadow: 4px 4px 0 rgba(63, 50, 41, .18);
+  --shadow-sm: 2.5px 2.5px 0 rgba(63, 50, 41, .16);
+  --shadow-on-hover: 3.5px 3.5px 0 rgba(63, 50, 41, .22);
+  --radius: 16px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
+  --border-w: 2px;
+  --gap-pad: 22px;
+  --body-font: var(--font-hand);
+  --heading-font: var(--font-hand);
+  --heading-weight: 700;
+  --bg-pattern: radial-gradient(#eadbc4 1px, transparent 1px);
+  --bg-pattern-size: 22px 22px;
+  --btn-press: translate(2px, 2px);
+  --chip-style: dashed;
+}
+
+/* ---------- B 暖橙 ---------- */
+[data-theme="warm"] {
+  --primary: #c96442;     --primary-d: #a94e30;     --primary-l: #f6e7df;     --primary-bg: #f6e7df;
+  --ink: #26251f;         --ink-2: #75705f;          --ink-3: #a39d8c;
+  --bg: #faf7f2;          --card: #ffffff;           --line: #eae4d8;         --line-2: #ddd5c4;
+  --shadow: 0 1px 3px rgba(38, 37, 31, .04);
+  --shadow-sm: 0 1px 2px rgba(38, 37, 31, .04);
+  --shadow-on-hover: 0 4px 12px rgba(38, 37, 31, .08);
+  --radius: 12px;
+  --radius-sm: 9px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+  --gap-pad: 22px;
+  --body-font: var(--font-sans);
+  --heading-font: var(--font-serif);
+  --heading-weight: 700;
+  --bg-pattern: none;
+  --bg-pattern-size: 0;
+  --btn-press: scale(.98);
+  --chip-style: solid;
+}
+
+/* ---------- C 毛玻璃 ---------- */
+[data-theme="glass"] {
+  --primary: #007aff;     --primary-d: #0062cc;     --primary-l: rgba(0,122,255,.14); --primary-bg: rgba(0,122,255,.14);
+  --ink: #1d1d1f;         --ink-2: #6e6e73;          --ink-3: #aeaeb2;
+  --bg: #f5f5f7;          --card: rgba(255,255,255,.62); --line: rgba(0,0,0,.07); --line-2: rgba(0,0,0,.1);
+  --shadow: 0 8px 32px rgba(31, 38, 66, .09);
+  --shadow-sm: 0 1px 3px rgba(31, 38, 66, .08);
+  --shadow-on-hover: 0 4px 14px rgba(31, 38, 66, .12);
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+  --gap-pad: 20px;
+  --body-font: var(--font-sans);
+  --heading-font: var(--font-sans);
+  --heading-weight: 700;
+  --bg-pattern: linear-gradient(160deg, #eef4ff 0%, #fdf1f4 45%, #eefbf3 100%);
+  --bg-pattern-size: 100% 100%;
+  --btn-press: scale(.97);
+  --chip-style: glass;
+  --card-blur: blur(28px) saturate(1.5);
+}
+
+/* ==========================================================================
+   配色层（仅覆盖 --primary 系列；其余状态色保持通用）
+   ========================================================================== */
+
+/* 暖橙（默认） */
+[data-palette="orange"] {
+  --primary: #f97316; --primary-d: #c2570c; --primary-l: #fff1d9; --primary-bg: #ffe8cc;
+  --brand-rgb: 249,115,22;
+}
+/* 草原绿 */
+[data-palette="grass"] {
+  --primary: #22c55e; --primary-d: #15803d; --primary-l: #e7f8ec; --primary-bg: #dcfce7;
+  --brand-rgb: 34,197,94;
+}
+/* 晴空蓝 */
+[data-palette="sky"] {
+  --primary: #2563eb; --primary-d: #1d4ed8; --primary-l: #dbeafe; --primary-bg: #e0ecff;
+  --brand-rgb: 37,99,235;
+}
+/* 莓红 */
+[data-palette="berry"] {
+  --primary: #e11d48; --primary-d: #9f1239; --primary-l: #ffe4e6; --primary-bg: #fce7f3;
+  --brand-rgb: 225,29,72;
+}
+/* 葡萄紫 */
+[data-palette="grape"] {
+  --primary: #8b5cf6; --primary-d: #6d28d9; --primary-l: #ede9fe; --primary-bg: #f3e8ff;
+  --brand-rgb: 139,92,246;
+}
+
+/* ==========================================================================
+   全局应用
+   ========================================================================== */
+html { color-scheme: light; }
+body {
+  font-family: var(--body-font);
+  color: var(--ink);
+  background: var(--bg);
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
+  background-attachment: fixed;
+}
+h1, h2, h3, h4, .card h2, .brand { font-family: var(--heading-font); font-weight: var(--heading-weight); }
+
+/* 毛玻璃主题：固定彩色光斑 + 磨砂卡片 */
+[data-theme="glass"] body::before, [data-theme="glass"] body::after {
+  content: ""; position: fixed; border-radius: 50%; filter: blur(90px); z-index: -1; pointer-events: none;
+}
+[data-theme="glass"] body::before { width: 480px; height: 480px; left: -120px; top: -140px; background: rgba(var(--brand-rgb), .25); }
+[data-theme="glass"] body::after  { width: 520px; height: 520px; right: -150px; top: 220px; background: rgba(255,170,200,.42); }
+[data-theme="glass"] body { background-color: #f5f5f7; }

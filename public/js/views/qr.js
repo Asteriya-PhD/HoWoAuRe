@@ -5,6 +5,7 @@
   const { state, studentsOf, classById } = window.Store;
 
   registerView('qr-view', {
+    props: { embedded: { type: Boolean, default: false } },
     data() {
       return {
         layout: 'large',
@@ -61,7 +62,7 @@
       },
     },
     template: `
-    <div class="page">
+    <div :class="embedded ? '' : 'page'">
       <div class="hint-box" style="margin-bottom:16px">
         <b>使用建议：</b>全班统一贴在<b>作业本封面右上角</b>或姓名栏旁，收上来摊开时码都露在同一位置，扫码最快。
         想一次管一学期，可以把 PDF 拿去打印成<b>不干胶防水贴</b>。谁的码坏了/换本子了，在这页单独勾选补打谁。
@@ -77,7 +78,10 @@
           </label>
         </div>
         <div class="row">
-          <button class="btn primary big" :disabled="busy || !cls" @click="generate">🖨 生成并下载 PDF</button>
+          <button class="btn primary big" :disabled="busy || !cls" @click="generate">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            生成并下载 PDF
+          </button>
           <span class="hint">将下载 {{ students.length && allSelected ? '全班' : selected.size + ' 名学生' }} 的贴纸文件，浏览器内可预览</span>
         </div>
       </div>

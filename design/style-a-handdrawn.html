@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案 A · 手绘漫画可爱风 — 作业扫码登记</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css">
+<style>
+:root{
+  --ink:#3f3229; --ink2:#8c7a6b; --paper:#fff8ec;
+  --line:#e8d9c3; --card:#fffdf7;
+  --orange:#f97316; --orange-d:#c2570c;
+  --blue:#3b82f6; --green:#22c55e; --green-d:#15803d;
+  --amber:#f59e0b; --red:#ef4444;
+  --r:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:"LXGW WenKai","PingFang SC","Microsoft YaHei",sans-serif;
+  color:var(--ink);font-size:15px;line-height:1.55;
+  background:var(--paper);
+  background-image:radial-gradient(#eadbc4 1px,transparent 1px);
+  background-size:22px 22px;
+  padding-bottom:80px;
+}
+/* ---------- 顶栏 ---------- */
+.topnav{
+  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:2px;
+  background:rgba(255,248,236,.92);backdrop-filter:blur(8px);
+  border-bottom:2px solid var(--ink);padding:0 20px;height:58px;
+}
+.brand{font-weight:700;font-size:18px;margin-right:20px;display:flex;align-items:center;gap:8px;letter-spacing:1px}
+.brand .logo{width:30px;height:30px;background:var(--orange);border:2px solid var(--ink);border-radius:10px 12px 10px 14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;transform:rotate(-4deg);box-shadow:2px 2px 0 var(--ink)}
+.topnav a{color:var(--ink2);text-decoration:none;padding:6px 14px;border-radius:12px;font-size:15px;border:2px solid transparent}
+.topnav a.on{color:var(--ink);background:#ffe8cc;border:2px solid var(--ink);font-weight:700;box-shadow:2px 2px 0 var(--ink);transform:rotate(-1deg)}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 20px}
+.sec-label{display:flex;align-items:center;gap:10px;margin:34px 0 14px;color:var(--ink2);font-size:14px}
+.sec-label b{color:var(--orange-d);font-size:16px}
+.sec-label::after{content:"";flex:1;border-top:2px dashed var(--line)}
+/* ---------- 卡片 ---------- */
+.card{
+  background:var(--card);border:2px solid var(--ink);border-radius:var(--r);
+  padding:20px 22px;margin-bottom:18px;box-shadow:4px 4px 0 rgba(63,50,41,.16);
+  position:relative;
+}
+.card h2{font-size:17px;display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.card h2 .doodle{width:26px;height:26px;flex:none}
+.card h2 .sub{font-size:13px;color:var(--ink2);font-weight:400;margin-left:auto}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spacer{flex:1}
+/* ---------- 按钮 ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:2px solid var(--ink);background:var(--card);color:var(--ink);
+  border-radius:13px;padding:7px 16px;font-size:15px;cursor:pointer;
+  font-family:inherit;transition:transform .12s, box-shadow .12s;
+  box-shadow:2.5px 2.5px 0 var(--ink);user-select:none;text-decoration:none;
+}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:3.5px 3.5px 0 var(--ink)}
+.btn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink)}
+.btn.primary{background:var(--orange);color:#fff}
+.btn.big{padding:12px 30px;font-size:18px;border-radius:16px;box-shadow:4px 4px 0 var(--ink)}
+.btn.sm{padding:3px 11px;font-size:13px;border-radius:10px;box-shadow:2px 2px 0 var(--ink)}
+.btn.danger{color:var(--red)}
+.btn svg{width:15px;height:15px;flex:none}
+.btn.big svg{width:20px;height:20px}
+/* ---------- 输入/芯片 ---------- */
+input,select{
+  border:2px solid var(--ink);border-radius:12px;padding:8px 13px;font-size:15px;
+  background:#fff;color:var(--ink);outline:none;font-family:inherit;min-width:0;
+}
+input:focus,select:focus{box-shadow:0 0 0 3px rgba(249,115,22,.25)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:2px dashed var(--ink2);border-radius:999px;padding:5px 16px;cursor:pointer;font-size:14px;background:#fff;color:var(--ink2);font-family:inherit;transition:all .15s}
+.chip:hover{border-color:var(--orange);color:var(--orange-d)}
+.chip.on{background:var(--orange);border:2px solid var(--ink);color:#fff;font-weight:700;box-shadow:2px 2px 0 var(--ink);transform:rotate(-1.5deg)}
+/* ---------- 表格 ---------- */
+table.list{width:100%;border-collapse:collapse}
+table.list th,table.list td{text-align:left;padding:9px 10px;border-bottom:1.5px dashed var(--line);font-size:14px}
+table.list th{color:var(--ink2);font-weight:400;font-size:13px}
+table.list tr:last-child td{border-bottom:none}
+/* ---------- 标签 ---------- */
+.tag{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 11px;font-size:12px;border:1.5px solid transparent}
+.tag.green{background:#e7f8ec;color:var(--green-d);border-color:#9fdcae}
+.tag.amber{background:#fdf3d8;color:#a16207;border-color:#f2d383}
+.tag.red{background:#fee9e9;color:#b91c1c;border-color:#f5b3b3}
+.tag.blue{background:#e6efff;color:#1d4ed8;border-color:#b3ccf8}
+.tag.gray{background:#f3ece1;color:var(--ink2);border-color:var(--line)}
+/* ---------- 看板 ---------- */
+.stat-strip{display:flex;align-items:center;gap:26px;flex-wrap:wrap;margin-bottom:4px}
+.stat{display:flex;align-items:baseline;gap:6px}
+.stat .n{font-size:46px;font-weight:700;line-height:1}
+.stat .t{font-size:14px;color:var(--ink2)}
+.stat.green .n{color:var(--green-d)} .stat.amber .n{color:#d97706;font-size:32px} .stat.red .n{color:var(--red);font-size:32px}
+.stu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:12px;margin-top:14px}
+.stu-card{
+  background:#fff;border:2px solid var(--ink);border-radius:14px;padding:10px 11px;
+  cursor:pointer;position:relative;transition:transform .15s;box-shadow:2.5px 2.5px 0 rgba(63,50,41,.14);
+}
+.stu-card:hover{transform:translate(-1px,-2px) rotate(-.6deg)}
+.stu-card .name{font-weight:700;font-size:16px}
+.stu-card .meta{font-size:12px;color:var(--ink2);margin-top:1px}
+.stu-card .order-no{position:absolute;top:-8px;right:-6px;font-size:11px;background:var(--blue);color:#fff;border:1.5px solid var(--ink);border-radius:8px;padding:0 7px;font-weight:700}
+.stu-card.ok{background:#f2fbf4;border-color:var(--green-d)}
+.stu-card.ok .name::after{content:"✓";color:var(--green-d);margin-left:6px;font-size:14px}
+.stu-card.late{background:#fdf6e3;border-color:var(--amber)}
+.stu-card.late::before{content:"补交";position:absolute;top:-9px;left:8px;font-size:10.5px;background:var(--amber);color:#fff;border:1.5px solid var(--ink);border-radius:8px;padding:0 6px;font-weight:700}
+.grade-chip{position:absolute;bottom:7px;right:8px;display:inline-flex;border-radius:9px;padding:0 8px;font-size:13px;font-weight:700;color:#fff;border:1.5px solid var(--ink)}
+.g-A\+{background:#15803d}.g-A{background:#22c55e}.g-A-{background:#f59e0b}.g-不合格{background:#ef4444}
+/* ---------- 批改 ---------- */
+.kbd{display:inline-block;border:1.5px solid var(--ink);border-bottom-width:3px;border-radius:6px;padding:0 7px;font-size:12px;background:#fff;font-family:ui-monospace,monospace}
+.batch-bar{background:#fff7e8;border:2px dashed var(--amber);border-radius:12px;padding:9px 14px;margin-bottom:12px}
+.grade-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1.5px dashed var(--line);border-radius:10px}
+.grade-row.current{background:#fff1e2;border:2px solid var(--orange);margin:2px 0}
+.grade-row.head{color:var(--ink2);font-size:13px}
+.grade-row .idx{width:36px;text-align:center;color:var(--ink2);font-variant-numeric:tabular-nums;font-size:13px}
+.grade-row .gname{flex:1;font-weight:700}
+.grade-row .gname .hint{font-weight:400;font-size:12px;color:var(--ink2)}
+.gbtn{border:2px solid var(--ink);background:#fff;border-radius:10px;padding:3px 13px;cursor:pointer;font-weight:700;font-size:13px;color:var(--ink2);font-family:inherit;box-shadow:2px 2px 0 rgba(63,50,41,.15);transition:all .1s}
+.gbtn:hover{color:var(--ink);transform:translate(-1px,-1px)}
+.gbtn.on-a{background:#15803d;color:#fff}.gbtn.on-a2{background:#22c55e;color:#fff}.gbtn.on-a3{background:#f59e0b;color:#fff}.gbtn.on-f{background:#ef4444;color:#fff}
+.gbtn:active{transform:translate(2px,2px);box-shadow:none}
+input[type=checkbox]{width:17px;height:17px;accent-color:var(--orange);cursor:pointer}
+.hint{font-size:13px;color:var(--ink2)}
+/* ---------- 组件样张 ---------- */
+.swatches{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.sw{width:64px;height:44px;border:2px solid var(--ink);border-radius:10px;display:flex;align-items:flex-end;justify-content:center;font-size:10px;color:#fff;padding-bottom:2px;font-family:ui-monospace,monospace}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="logo">✎</span>作业扫码登记</div>
+  <a class="on" href="#">工作台</a><a href="#">名单</a><a href="#">二维码</a><a href="#">历史</a>
+</header>
+
+<main class="wrap">
+
+  <!-- ===== 工作台 ===== -->
+  <div class="sec-label"><b>① 工作台</b>开一场收作业</div>
+  <div class="card">
+    <h2>
+      <svg class="doodle" viewBox="0 0 24 24" fill="none" stroke="#c2570c" stroke-width="2" stroke-linecap="round"><path d="M12 3v2M5 5l1.5 1.5M19 5l-1.5 1.5M3 13h18M6 17l-2 4M18 17l2 4M12 8a5 5 0 0 1 5 5H7a5 5 0 0 1 5-5z"/></svg>
+      开一场收作业
+      <span class="sub">电脑保持这页不关，大屏实时更新</span>
+    </h2>
+    <div class="row" style="margin-bottom:12px">
+      <select style="min-width:170px"><option>初三（2）班（45人）</option></select>
+      <select style="width:150px"><option>2026-09-02</option></select>
+    </div>
+    <div class="chips" style="margin-bottom:12px">
+      <span class="chip on">数学</span><span class="chip">语文</span><span class="chip">英语</span><span class="chip">物理</span><span class="chip">化学</span><span class="chip">生物</span><span class="chip">历史</span>
+      <input placeholder="自定义科目…" style="width:150px">
+    </div>
+    <div class="row" style="margin-bottom:16px">
+      <input placeholder="作业标题（可选），如：光的干涉" style="width:300px;padding:10px 13px">
+    </div>
+    <button class="btn primary big">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      开始收作业
+    </button>
+  </div>
+
+  <div class="card">
+    <h2>
+      <svg class="doodle" viewBox="0 0 24 24" fill="none" stroke="#c2570c" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.4a1 1 0 0 0 1 .6h9.7a1 1 0 0 0 1-.8L21 8H6"/></svg>
+      收集中
+      <span class="sub">扫完点「截止」，之后的扫码自动记为补交</span>
+    </h2>
+    <table class="list">
+      <thead><tr><th>班级</th><th>科目 / 标题</th><th>日期</th><th>进度</th><th style="min-width:290px"></th></tr></thead>
+      <tbody>
+        <tr>
+          <td>初三（2）班</td>
+          <td><b>光的干涉</b><span class="hint" style="margin-left:6px">数学</span> <span class="tag green">收集中</span></td>
+          <td>2026-09-02</td>
+          <td><span class="tag green">42 / 45</span></td>
+          <td><div class="row">
+            <button class="btn sm primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18.5h2"/></svg>手机扫码</button>
+            <button class="btn sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>看板</button>
+            <button class="btn sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>批改</button>
+            <button class="btn sm">截止</button>
+          </div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ===== 看板 ===== -->
+  <div class="sec-label"><b>② 收作业看板</b>大屏实时刷新</div>
+  <div class="card">
+    <div class="row" style="margin-bottom:14px">
+      <h2 style="margin:0;font-size:20px">初三（2）班 · 数学 ·「光的干涉」 · 2026-09-02</h2>
+      <span class="tag green">收集中</span>
+      <div class="spacer"></div>
+      <button class="btn sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18.5h2"/></svg>手机扫码</button>
+      <button class="btn sm">截止收集</button>
+      <button class="btn sm danger">删除</button>
+    </div>
+    <div class="stat-strip">
+      <div class="stat green"><span class="n">42</span><span class="t">/ 45 已交</span></div>
+      <div class="stat amber"><span class="n">2</span><span class="t">补交</span></div>
+      <div class="stat red"><span class="n">1</span><span class="t">未交</span></div>
+      <div class="spacer"></div>
+      <div class="row">
+        <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>按扫码顺序批改</button>
+        <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>复制未交名单</button>
+        <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>导出 Excel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <span class="chip on">按学号</span><span class="chip">按扫码顺序</span>
+      <div class="spacer"></div>
+      <span class="hint">点学生卡可撤销 / 标记补交</span>
+    </div>
+    <div class="stu-grid">
+      <div class="stu-card ok"><span class="order-no">#1</span><div class="name">陈一诺</div><div class="meta">01 · 08:02</div><span class="grade-chip g-A\+">A+</span></div>
+      <div class="stu-card ok"><span class="order-no">#2</span><div class="name">李想</div><div class="meta">02 · 08:02</div></div>
+      <div class="stu-card ok"><span class="order-no">#3</span><div class="name">王子墨</div><div class="meta">03 · 08:03</div><span class="grade-chip g-A">A</span></div>
+      <div class="stu-card ok"><span class="order-no">#4</span><div class="name">刘芷萱</div><div class="meta">04 · 08:03</div></div>
+      <div class="stu-card ok"><span class="order-no">#5</span><div class="name">张浩然</div><div class="meta">05 · 08:04</div><span class="grade-chip g-A-">A-</span></div>
+      <div class="stu-card late"><span class="order-no">#40</span><div class="name">赵梓涵</div><div class="meta">06 · 08:41</div></div>
+      <div class="stu-card ok"><span class="order-no">#6</span><div class="name">孙悦</div><div class="meta">07 · 08:05</div></div>
+      <div class="stu-card"><div class="name">周子轩</div><div class="meta">08 · 未交</div></div>
+      <div class="stu-card ok"><span class="order-no">#7</span><div class="name">吴思远</div><div class="meta">09 · 08:06</div><span class="grade-chip g-A">A</span></div>
+      <div class="stu-card late"><span class="order-no">#41</span><div class="name">郑晓彤</div><div class="meta">10 · 08:43</div></div>
+      <div class="stu-card ok"><span class="order-no">#8</span><div class="name">冯雨桐</div><div class="meta">11 · 08:07</div><span class="grade-chip g-不合格">不合格</span></div>
+      <div class="stu-card ok"><span class="order-no">#9</span><div class="name">蒋一帆</div><div class="meta">12 · 08:08</div></div>
+    </div>
+  </div>
+
+  <!-- ===== 批改 ===== -->
+  <div class="sec-label"><b>③ 批改页</b>按扫码顺序 = 作业堆叠顺序</div>
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <h2 style="margin:0;font-size:18px">初三（2）班 · 数学 ·「光的干涉」</h2>
+      <span class="tag green">按扫码顺序批改</span>
+      <div class="spacer"></div>
+      <span class="tag gray">已批 12 / 30</span>
+    </div>
+    <div class="row">
+      <span class="hint">键盘流：<span class="kbd">1</span> A+　<span class="kbd">2</span> A　<span class="kbd">3</span> A-　<span class="kbd">4</span> 不合格　<span class="kbd">X</span> 清除　<span class="kbd">Ctrl+Z</span> 撤销</span>
+      <div class="spacer"></div>
+      <button class="btn sm">↩ 撤销上一步</button>
+      <button class="btn sm">把未批改的全部设为 A</button>
+    </div>
+  </div>
+
+  <div class="card" style="padding:10px 14px">
+    <div class="batch-bar row">
+      <input type="checkbox" checked>
+      <b>已选 3 人 → 批量设等级：</b>
+      <button class="gbtn on-a">A+</button><button class="gbtn on-a2">A</button><button class="gbtn on-a3">A-</button><button class="gbtn on-f">不合格</button><button class="gbtn">×</button>
+      <div class="spacer"></div>
+      <button class="btn sm">只选未批改（18）</button>
+    </div>
+    <div class="grade-row head">
+      <input type="checkbox">
+      <span class="idx">顺序</span><span class="gname">学生</span><span style="width:230px"></span>
+    </div>
+    <div class="grade-row current">
+      <input type="checkbox">
+      <span class="idx">#13</span>
+      <span class="gname">陈一诺 <span class="hint">01</span></span>
+      <div class="row" style="width:230px;justify-content:flex-end">
+        <button class="gbtn">A+</button><button class="gbtn">A</button><button class="gbtn">A-</button><button class="gbtn">不合格</button>
+      </div>
+    </div>
+    <div class="grade-row">
+      <input type="checkbox" checked>
+      <span class="idx">#14</span>
+      <span class="gname">李想 <span class="hint">02</span></span>
+      <div class="row" style="width:230px;justify-content:flex-end">
+        <button class="gbtn on-a">A+</button><button class="gbtn">A</button><button class="gbtn">A-</button><button class="gbtn">不合格</button>
+      </div>
+    </div>
+    <div class="grade-row">
+      <input type="checkbox" checked>
+      <span class="idx">#15</span>
+      <span class="gname">王子墨 <span class="hint">03 · 补交</span></span>
+      <div class="row" style="width:230px;justify-content:flex-end">
+        <button class="gbtn">A+</button><button class="gbtn on-a2">A</button><button class="gbtn">A-</button><button class="gbtn">不合格</button>
+      </div>
+    </div>
+    <div class="grade-row">
+      <input type="checkbox">
+      <span class="idx">#16</span>
+      <span class="gname">刘芷萱 <span class="hint">04</span></span>
+      <div class="row" style="width:230px;justify-content:flex-end">
+        <button class="gbtn">A+</button><button class="gbtn">A</button><button class="gbtn">A-</button><button class="gbtn">不合格</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 组件样张 ===== -->
+  <div class="sec-label"><b>④ 组件样张</b>统一控件风格</div>
+  <div class="card">
+    <div class="row" style="gap:26px;align-items:flex-start">
+      <div>
+        <div class="hint" style="margin-bottom:8px">按钮</div>
+        <div class="row" style="gap:8px">
+          <button class="btn primary">主要</button>
+          <button class="btn">次要</button>
+          <button class="btn danger">删除</button>
+          <button class="btn sm">小按钮</button>
+          <button class="btn" disabled>禁用</button>
+        </div>
+      </div>
+      <div>
+        <div class="hint" style="margin-bottom:8px">状态标签</div>
+        <div class="row" style="gap:8px">
+          <span class="tag green">已交</span><span class="tag amber">补交</span><span class="tag red">未交</span><span class="tag blue">已截止</span><span class="tag gray">进行中</span>
+        </div>
+      </div>
+      <div>
+        <div class="hint" style="margin-bottom:8px">等级</div>
+        <div class="row" style="gap:6px">
+          <span class="grade-chip g-A\+" style="position:static">A+</span>
+          <span class="grade-chip g-A" style="position:static">A</span>
+          <span class="grade-chip g-A-" style="position:static">A-</span>
+          <span class="grade-chip g-不合格" style="position:static">不合格</span>
+        </div>
+      </div>
+      <div>
+        <div class="hint" style="margin-bottom:8px">色板</div>
+        <div class="swatches">
+          <div class="sw" style="background:#f97316">#F97316</div>
+          <div class="sw" style="background:#3b82f6">#3B82F6</div>
+          <div class="sw" style="background:#22c55e">#22C55E</div>
+          <div class="sw" style="background:#fff8ec;color:#8c7a6b;border-color:#e8d9c3">#FFF8EC</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

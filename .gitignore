@@ -17,3 +17,10 @@ data.script-old-*/
 # 系统杂项
 .DS_Store
 Thumbs.db
+
+# 验证用临时页
+public/seed.html
+
+# 字体 woff2 切片：从 npm 包按需拷贝到打包产物（npm run vendor / tauri-prepare / make-win-portable）
+# 体积太大不进 git；CSS 入口文件保留
+public/vendor/fonts/files/

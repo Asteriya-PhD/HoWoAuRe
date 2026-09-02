@@ -64,7 +64,10 @@
             <option v-for="c in state.classes" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
           <div class="spacer"></div>
-          <button class="btn" @click="exportAll">⬇ 导出全部（多工作表）</button>
+          <button class="btn" @click="exportAll">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+            导出全部（多工作表）
+          </button>
         </div>
       </div>
 
