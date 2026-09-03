@@ -30,7 +30,12 @@ jobs:
         run: choco install nsis -y --no-progress
 
       - name: 编译安装程序
-        run: makensis scripts/installer.nsi
+        shell: pwsh
+        run: |
+          # choco 安装后 PATH 不传播到本 step，直接用完整路径
+          $nsis = @('C:\Program Files (x86)\NSIS\makensis.exe', 'C:\Program Files\NSIS\makensis.exe') | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $nsis) { throw '未找到 makensis，NSIS 可能安装失败' }
+          & $nsis scripts/installer.nsi
 
       - name: 上传安装程序（手动触发时）
         uses: actions/upload-artifact@v4
