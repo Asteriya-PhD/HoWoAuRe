@@ -18,7 +18,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
 const TMP = path.join(DIST, 'win-tmp');
 const APP_NAME = '作业扫码登记_Windows免安装版';
-const BUILD = path.join(DIST, APP_NAME);
+const BUILD = path.join(DIST, 'HoWoAuRe-win-portable');
+const ZIP_TMP = path.join(DIST, 'HoWoAuRe-win-portable.zip');
 const ZIP = path.join(DIST, APP_NAME + '.zip');
 const NODE_DIST_URL = 'https://nodejs.org/dist/latest-v22.x/';
 
@@ -119,6 +120,7 @@ async function main() {
 
   console.log('清理旧构建目录…');
   fs.rmSync(BUILD, { recursive: true, force: true });
+  fs.rmSync(ZIP_TMP, { force: true });
   fs.rmSync(ZIP, { force: true });
   fs.mkdirSync(BUILD, { recursive: true });
 
@@ -159,7 +161,8 @@ async function main() {
     }
   };
   rmDotDSStore(BUILD);
-  execFileSync('tar', ['-a', '-cf', ZIP, '-C', BUILD, '.']);
+  execFileSync('tar', ['-a', '-cf', ZIP_TMP, '-C', BUILD, '.']);
+  fs.renameSync(ZIP_TMP, ZIP);
 
   const mb = (n) => (n / 1024 / 1024).toFixed(1) + 'MB';
   console.log(`\n完成：${ZIP} (${mb(fs.statSync(ZIP).size)})`);

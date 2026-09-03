@@ -27,7 +27,7 @@ Section "主程序" SecMain
   SetOutPath "$INSTDIR"
 
   ; 绿色包全部内容（node/node_modules/public/server.js/启动器/说明）
-  File /r "..\dist\作业扫码登记_Windows免安装版\*"
+  File /r "..\dist\HoWoAuRe-win-portable\*"
 
   ; 桌面 + 开始菜单快捷方式（指向启动器，双击即用）
   CreateShortCut "$DESKTOP\作业扫码登记.lnk" "$INSTDIR\启动作业扫码.bat" "" "$INSTDIR\启动作业扫码.bat" 0 SW_SHOWMINIMIZED
