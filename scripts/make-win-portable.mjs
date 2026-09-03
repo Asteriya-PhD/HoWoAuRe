@@ -8,7 +8,7 @@
  * 用法：node scripts/make-win-portable.mjs
  * 前置：dist/win-tmp/ 下放好 node-vX-win-x64.zip（脚本发现缺失会自动从 nodejs.org 下载）
  */
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import https from 'https';
@@ -122,10 +122,10 @@ async function main() {
   fs.rmSync(ZIP, { force: true });
   fs.mkdirSync(BUILD, { recursive: true });
 
-  // 1) 便携版 node.exe（只取 zip 根目录里的 node.exe，其余 npm 相关不需要）
+  // 1) 便携版 node.exe（tar 为 macOS/Windows 自带 bsdtar；--strip-components 去掉顶层版本目录）
   console.log('提取 node.exe…');
   fs.mkdirSync(path.join(BUILD, 'node'), { recursive: true });
-  sh(`unzip -j -o "${nodeZip}" "*/node.exe" -d "${BUILD}/node"`);
+  execFileSync('tar', ['-xf', nodeZip, '-C', path.join(BUILD, 'node'), '--strip-components=1']);
 
   // 2) 生产依赖（npm ci 按锁文件精确安装，避开开发依赖；全部纯 JS，跨平台可用）
   console.log('安装生产依赖…');
@@ -149,21 +149,17 @@ async function main() {
   fs.writeFileSync(path.join(BUILD, '启动作业扫码.bat'), BAT, 'utf8');
   fs.writeFileSync(path.join(BUILD, '使用说明.txt'), '\ufeff' + TXT, 'utf8');
 
-  // 5) 清掉 macOS 垃圾文件后打 zip（Python zipfile 用 UTF-8 文件名标志，Windows 解压不乱码）
+  // 5) 清理 macOS 垃圾文件后打 zip（tar -a 按扩展名选 zip 格式，文件名 UTF-8，Windows 解压不乱码）
   console.log('清理 .DS_Store 并打包 zip…');
-  sh(`find "${BUILD}" -name .DS_Store -delete`);
-  const py = [
-    'import os, sys, zipfile',
-    `src, dst = sys.argv[1], sys.argv[2]`,
-    'with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:',
-    '    for dirpath, dirnames, filenames in os.walk(src):',
-    '        for fn in filenames:',
-    '            p = os.path.join(dirpath, fn)',
-    '            z.write(p, os.path.relpath(p, src))',
-    'print("zip done")',
-  ].join('\n');
-  fs.writeFileSync(path.join(TMP, 'zip.py'), py);
-  sh(`python3 "${path.join(TMP, 'zip.py')}" "${BUILD}" "${ZIP}"`);
+  const rmDotDSStore = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) rmDotDSStore(p);
+      else if (e.name === '.DS_Store') fs.rmSync(p);
+    }
+  };
+  rmDotDSStore(BUILD);
+  execFileSync('tar', ['-a', '-cf', ZIP, '-C', BUILD, '.']);
 
   const mb = (n) => (n / 1024 / 1024).toFixed(1) + 'MB';
   console.log(`\n完成：${ZIP} (${mb(fs.statSync(ZIP).size)})`);

@@ -1,0 +1,49 @@
+# 打包 Windows 安装程序（Setup.exe）
+# 触发：手动（workflow_dispatch）/ 推送 v* tag
+# 流程：归拢绿色包（make-win-portable.mjs）→ NSIS 打包安装程序 → 手动时上传 artifact，tag 时挂到对应 Release
+name: 打包 Windows 安装程序
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 归拢 Windows 绿色包（node 便携版 + 生产依赖 + server/public）
+        run: node scripts/make-win-portable.mjs
+
+      - name: 安装 NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: 编译安装程序
+        run: makensis scripts/installer.nsi
+
+      - name: 上传安装程序（手动触发时）
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-Setup
+          path: dist/HomeworkScan_*.exe
+          if-no-files-found: error
+
+      - name: 挂到 Release（tag 触发时）
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release upload "$env:GITHUB_REF_NAME" dist/HomeworkScan_*.exe --clobber
+          Write-Host "已挂到 Release $env:GITHUB_REF_NAME"
