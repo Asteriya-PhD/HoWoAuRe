@@ -1,12 +1,8 @@
-// 按扫码顺序批改：作业本堆叠顺序 = 扫码顺序，键盘 1/2/3/4 逐本打等级
+// 按扫码顺序批改：作业本堆叠顺序 = 扫码顺序，键盘 1~9 逐本打等级（等级表在「设置-批改等级」自定义）
 (function () {
   'use strict';
   const { api, toast, registerView } = window.App;
-  const { onSessionEvent } = window.Store;
-
-  const GRADES = ['A+', 'A', 'A-', '不合格'];
-  const KEYMAP = { '1': 'A+', '2': 'A', '3': 'A-', '4': '不合格', 'x': null };
-  const BTNCls = { 'A+': 'on-a', 'A': 'on-a2', 'A-': 'on-a3', '不合格': 'on-f' };
+  const { state, onSessionEvent, gradePosCls } = window.Store;
 
   registerView('grade-view', {
     data() {
@@ -21,6 +17,9 @@
     },
     computed: {
       sid() { return Number(this.$route.params.sid); },
+      grades() { return (state.settings && state.settings.grades) || []; },
+      // 「把未批改的全部设为 X」默认档：取第一档（优/合格/A+ 都安全），两档配置下绝不落到挂科档
+      defaultGrade() { return this.grades[0]; },
       rows() {
         if (!this.session) return [];
         const list = this.session.students.filter(s => s.sub);
@@ -45,6 +44,7 @@
       window.removeEventListener('keydown', this.onKey);
     },
     methods: {
+      gradePosCls,
       async load() {
         try {
           this.session = await api('GET', `/sessions/${this.sid}`);
@@ -58,7 +58,11 @@
       onKey(ev) {
         if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA') return;
         if ((ev.ctrlKey || ev.metaKey) && ev.key === 'z') { ev.preventDefault(); return this.undo(); }
-        const g = KEYMAP[ev.key];
+        // 修饰键组合（Cmd+数字切标签页、Cmd+X 剪切等）留给浏览器/系统
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        let g;
+        if (/^[1-9]$/.test(ev.key)) g = this.grades[Number(ev.key) - 1];
+        else if (ev.key === 'x' || ev.key === 'X') g = null;
         if (g === undefined) return;
         ev.preventDefault();
         if (this.checked.size) this.applyBatch(g);
@@ -139,22 +143,22 @@
           <router-link class="btn sm" :to="'/live/'+sid">返回看板</router-link>
         </div>
         <div class="row">
-          <span class="hint">键盘流：<span class="kbd">1</span> A+　<span class="kbd">2</span> A　<span class="kbd">3</span> A-　<span class="kbd">4</span> 不合格　<span class="kbd">X</span> 清除　<span class="kbd">Ctrl+Z</span> 撤销</span>
+          <span class="hint">键盘流：<template v-for="(g, i) in grades" :key="g"><span class="kbd">{{ i + 1 }}</span> {{ g }}　</template><span class="kbd">X</span> 清除　<span class="kbd">Ctrl+Z</span> 撤销</span>
           <div class="spacer"></div>
           <span class="tag">已批 {{ gradedCount }} / {{ rows.length }}</span>
         </div>
         <div class="row" style="margin-top:10px">
           <button class="btn sm" :disabled="!undoStack.length" @click="undo">↩ 撤销上一步</button>
-          <button class="btn sm" @click="gradeAllUngraded('A')">把未批改的全部设为 A</button>
+          <button class="btn sm" v-if="defaultGrade" @click="gradeAllUngraded(defaultGrade)">把未批改的全部设为 {{ defaultGrade }}</button>
           <template v-if="checked.size">
             <div class="spacer"></div>
             <span class="tag blue">已选 {{ checked.size }} 人 →</span>
-            <button class="btn sm" v-for="g in ['A+','A','A-','不合格',null]" :key="g" @click="applyBatch(g)">{{ g === null ? '清除' : g }}</button>
+            <button class="btn sm" v-for="g in [...grades, null]" :key="g ?? 'clear'" @click="applyBatch(g)">{{ g === null ? '清除' : g }}</button>
             <button class="btn sm" @click="clearChecked">取消选择</button>
           </template>
           <template v-else>
             <div class="spacer"></div>
-            <span class="hint">先点选多行，可批量设等级；按 1/2/3/4 会直接批给当前行</span>
+            <span class="hint">先点选多行，可批量设等级；按数字键会直接批给当前行</span>
           </template>
         </div>
       </div>
@@ -164,15 +168,15 @@
           <input type="checkbox" style="zoom:1.3" :checked="allChecked" @change="toggleSelectAll">
           <span class="gname" style="cursor:pointer;user-select:none" @click="toggleSelectAll">全选 <span class="hint" v-if="checked.size">（已选 {{ checked.size }} / {{ rows.length }}）</span></span>
           <button class="btn sm" :disabled="!ungradedRows.length" @click="selectUngraded">只选未批改（{{ ungradedRows.length }}）</button>
-          <span class="hint">分摞批改：扫完一摞先点这里，再按 1/2/3/4 整摞定档</span>
+          <span class="hint">分摞批改：扫完一摞先点这里，再按 1~{{ grades.length }} 整摞定档</span>
         </div>
         <div v-for="(row, i) in rows" :key="row.id">
           <div class="grade-row" :class="{current: i===cursor}">
             <input type="checkbox" style="zoom:1.3" :checked="checked.has(row.id)" @change="toggleCheck(row)">
             <span class="idx">#{{ row.sub.order }}</span>
             <span class="gname">{{ row.name }} <span class="hint">{{ row.stuNo }}<span v-if="row.sub.status==='late'"> · 补交</span></span></span>
-            <span class="grade-chip" :class="'g-'+row.sub.grade" v-if="row.sub.grade">{{ row.sub.grade }}</span>
-            <button class="gbtn" v-for="g in ['A+','A','A-','不合格']" :key="g" :class="{ [BTNCls[g]]: row.sub.grade===g }" @click="setGrade(row, g); if(cursor===i) cursor++">{{ g }}</button>
+            <span class="grade-chip" :class="gradePosCls(row.sub.grade)" v-if="row.sub.grade">{{ row.sub.grade }}</span>
+            <button class="gbtn" v-for="g in grades" :key="g" :class="{ [gradePosCls(g)]: row.sub.grade===g }" @click="setGrade(row, g); if(cursor===i) cursor++">{{ g }}</button>
             <button class="gbtn" v-if="row.sub.grade" @click="setGrade(row, null)">×</button>
           </div>
         </div>
@@ -181,6 +185,5 @@
     </div>
     <div class="page" v-else-if="missing"><div class="empty">场次不存在（可能已被「数据还原」覆盖）　<router-link to="/history">返回历史</router-link></div></div>
     <div class="page" v-else><div class="empty">加载中…</div></div>`,
-    setup() { return { BTNCls }; },
   });
 })();

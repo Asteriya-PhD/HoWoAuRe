@@ -7,8 +7,8 @@
 
   const routes = [
     { path: '/', component: registry['home-view'] },
-    { path: '/history', component: registry['history-view'] },
-    { path: '/settings/:section(appearance|roster|qr|data)?', component: registry['settings-view'] },
+    { path: '/history/:tab(sessions|class|student)?', component: registry['history-view'] },
+    { path: '/settings/:section(appearance|grades|roster|qr|data)?', component: registry['settings-view'] },
     // 旧路由兼容：重定向到设置壳
     { path: '/roster', redirect: '/settings/roster' },
     { path: '/qr', redirect: '/settings/qr' },

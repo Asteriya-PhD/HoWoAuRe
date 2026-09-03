@@ -59,7 +59,7 @@
         try {
           const r = await api('POST', '/import', preview.data);
           if (this.restorePreview === preview) this.restorePreview = null;
-          toast(`已还原：${r.classes} 个班级、${r.students} 名学生、${r.sessions} 个场次，班级与学号保持不变`, 'ok', 4000);
+          toast(`已还原：${r.classes} 个班级、${r.students} 名学生、${r.sessions} 个场次，班级与学号保持不变；批改等级表已随备份还原`, 'ok', 4000);
           window.Store.refresh();
         } catch (e) {
           toast(e.message, 'err');

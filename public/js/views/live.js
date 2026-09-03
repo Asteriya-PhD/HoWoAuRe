@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const { api, toast, fmtTime, registerView, download } = window.App;
-  const { state, refresh, onSessionEvent, studentsOf, classById, absentText } = window.Store;
+  const { state, refresh, onSessionEvent, studentsOf, classById, absentText, gradePosCls } = window.Store;
 
   registerView('live-view', {
     data() {
@@ -246,7 +246,7 @@
             <span class="order-no" v-if="s.sub">#{{ s.sub.order }}</span>
             <div class="name">{{ s.name }}</div>
             <div class="meta">{{ s.stuNo }}<span class="time" v-if="s.sub"> · {{ fmtTime(s.sub.time) }}</span><span v-if="s.sub && s.sub.status==='late'"> · 补交</span></div>
-            <span class="grade-chip" :class="'g-'+s.sub.grade" v-if="s.sub && s.sub.grade">{{ s.sub.grade }}</span>
+            <span class="grade-chip" :class="gradePosCls(s.sub.grade)" v-if="s.sub && s.sub.grade">{{ s.sub.grade }}</span>
           </div>
         </div>
       </div>
@@ -293,6 +293,6 @@
       </div>
     </div>
     <div class="page" v-else><div class="empty">加载中…</div></div>`,
-    setup() { return { fmtTime }; },
+    setup() { return { fmtTime, gradePosCls }; },
   });
 })();

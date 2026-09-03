@@ -42,7 +42,23 @@ const CERT_KEY = path.join(DATA_DIR, 'key.pem');
 const CERT_CRT = path.join(DATA_DIR, 'cert.pem');
 
 // ---------- 数据存储 ----------
-let db = { counter: 0, classes: [], students: [], sessions: [] };
+const DEFAULT_GRADES = ['A+', 'A', 'A-', '不合格'];
+// 等级体系存 db.settings.grades（随备份导出导入）；提交记录上的等级是自由字符串，改配置不影响旧记录
+function normalizeGrades(list) {
+  const out = [];
+  for (const g of (Array.isArray(list) ? list : [])) {
+    // 只收字符串：对象/数字等脏元素直接丢弃，而非洗成 '[object Object]' 之类的垃圾名
+    if (typeof g !== 'string') continue;
+    // 剥零宽/格式字符（trim() 管不到），避免产出显示为空的隐形等级名
+    const s = g.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim().slice(0, 12);
+    if (s && !out.includes(s)) out.push(s);
+  }
+  // 与 PUT /settings/grades 同一不变量：1~9 档；脏文件超量时截断而非整体回退默认
+  return out.length ? out.slice(0, 9) : DEFAULT_GRADES.slice();
+}
+const normalizeSettings = (s) => (s && typeof s === 'object' && !Array.isArray(s)) ? s : {};
+
+let db = { counter: 0, classes: [], students: [], sessions: [], settings: { grades: DEFAULT_GRADES.slice() } };
 let saveTimer = null;
 
 function loadDb() {
@@ -52,6 +68,7 @@ function loadDb() {
       db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
       for (const key of ['classes', 'students', 'sessions']) if (!Array.isArray(db[key])) db[key] = [];
       if (!Number.isInteger(db.counter)) db.counter = 0;
+      db.settings = { ...normalizeSettings(db.settings), grades: normalizeGrades(db.settings && db.settings.grades) };
     } catch (e) {
       const corrupt = DB_FILE + '.corrupt-' + Date.now();
       fs.renameSync(DB_FILE, corrupt);
@@ -190,7 +207,10 @@ function doScan(session, code) {
 // ---------- HTTP API ----------
 const app = express();
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  // 本地工具必须禁用启发式缓存：WebView 缓存旧 JS 会挡住更新后的界面，no-cache = 每次用 ETag 向服务验证
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+}));
 
 const api = express.Router();
 
@@ -372,10 +392,29 @@ api.post('/import', (req, res) => {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, 'db-before-import-' + ts + '.json'));
-  db = { counter, classes, students, sessions };
+  db = { counter, classes, students, sessions, settings: { ...normalizeSettings(db.settings), grades: normalizeGrades(d.settings && d.settings.grades) } };
   saveDbNow();
   broadcast({ type: 'db_changed' });
   res.json({ ok: true, classes: classes.length, students: students.length, sessions: sessions.length });
+});
+
+// ----- 设置（等级体系） -----
+api.put('/settings/grades', (req, res) => {
+  const list = Array.isArray(req.body.grades) ? req.body.grades : null;
+  if (!list) return res.status(400).json({ message: 'grades 需要是数组' });
+  if (!list.length) return res.status(400).json({ message: '至少保留一个等级' });
+  if (list.length > 9) return res.status(400).json({ message: '等级最多 9 个（键盘 1~9 快捷批改）' });
+  const grades = [];
+  for (const g of list) {
+    const s = String(g ?? '').trim().slice(0, 12);
+    if (!s) return res.status(400).json({ message: '等级名称不能为空' });
+    if (grades.includes(s)) return res.status(400).json({ message: `等级「${s}」重复了` });
+    grades.push(s);
+  }
+  db.settings = { ...db.settings, grades };
+  saveDb();
+  broadcast({ type: 'settings_changed' });
+  res.json({ grades });
 });
 
 // ----- 收作业场次 -----

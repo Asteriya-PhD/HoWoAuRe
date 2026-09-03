@@ -5,6 +5,7 @@
   const { state, refresh, studentsOf, classById, setClass } = window.Store;
 
   const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'];
+  const todayStr = () => { const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 
   registerView('home-view', {
     data() {
@@ -13,7 +14,7 @@
         subject: '数学',
         subjectCustom: '',
         title: '',
-        date: new Date().toISOString().slice(0, 10),
+        date: todayStr(),
         showQrFor: null,   // 显示手机入口二维码的场次 id
         qrDataUrl: '',
         scanUrl: '',
@@ -81,14 +82,11 @@
     template: `
     <div class="page">
       <div class="card">
-        <h2>开一场收作业 <span class="sub">电脑保持这页不关，大屏实时更新</span></h2>
-        <div class="row" style="margin-bottom:12px">
-          <select v-model.number="classId" style="min-width:150px">
-            <option v-for="c in state.classes" :key="c.id" :value="c.id">{{ c.name }}（{{ studentsOf(c.id).length }}人）</option>
-          </select>
-          <select v-model="date" style="width:150px">
-            <option :value="date">{{ date }}</option>
-          </select>
+        <h2>开一场收作业 <span class="sub">{{ date }} · 电脑保持这页不关，大屏实时更新</span></h2>
+        <div class="class-tabs" style="margin-bottom:12px">
+          <button v-for="c in state.classes" :key="c.id" class="btn" :class="{on: classId===c.id}" @click="classId = c.id">
+            {{ c.name }}<span class="hint">（{{ studentsOf(c.id).length }}人）</span>
+          </button>
         </div>
         <div class="chips" style="margin-bottom:12px">
           <span v-for="s in subjects" :key="s" class="chip" :class="{on: subject===s && !subjectCustom}" @click="subject=s; subjectCustom=''">{{ s }}</span>

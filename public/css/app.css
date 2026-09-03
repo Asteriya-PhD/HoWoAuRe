@@ -188,8 +188,6 @@ table.list tr:last-child td { border-bottom: none; }
 [data-theme="warm"] .stu-card.late::before, [data-theme="glass"] .stu-card.late::before { border: none; }
 
 .grade-chip { display: inline-flex; border-radius: 8px; padding: 0 9px; font-size: 13px; font-weight: 700; color: #fff; }
-.g-A\+ { background: #15803d; } .g-A { background: #22c55e; } .g-A- { background: #f59e0b; } .g-不合格 { background: #ef4444; }
-[data-theme="glass"] .g-A\+ { background: var(--ok-d); } [data-theme="glass"] .g-A { background: var(--ok); }
 
 /* ---------- 批改页 ---------- */
 .grade-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); border-radius: 8px; }
@@ -205,16 +203,43 @@ table.list tr:last-child td { border-bottom: none; }
   transition: all .12s;
 }
 .gbtn:hover { color: var(--ink); }
-.gbtn.on-a { color: #fff; background: #15803d; border-color: #15803d; }
-.gbtn.on-a2 { color: #fff; background: #22c55e; border-color: #22c55e; }
-.gbtn.on-a3 { color: #fff; background: #f59e0b; border-color: #f59e0b; }
-.gbtn.on-f { color: #fff; background: #ef4444; border-color: #ef4444; }
+/* 等级配色（按「设置-批改等级」里的位置取色：1 最绿 → 9 最红），chip 与快捷按钮共用 */
+.gp1 { background: #15803d; border-color: #15803d; }
+.gp2 { background: #22c55e; border-color: #22c55e; }
+.gp3 { background: #65a30d; border-color: #65a30d; }
+.gp4 { background: #ca8a04; border-color: #ca8a04; }
+.gp5 { background: #f59e0b; border-color: #f59e0b; }
+.gp6 { background: #f97316; border-color: #f97316; }
+.gp7 { background: #ef4444; border-color: #ef4444; }
+.gp8 { background: #dc2626; border-color: #dc2626; }
+.gp9 { background: #b91c1c; border-color: #b91c1c; }
+.g-unknown { background: #64748b; }
+.gbtn.gp1, .gbtn.gp2, .gbtn.gp3, .gbtn.gp4, .gbtn.gp5, .gbtn.gp6, .gbtn.gp7, .gbtn.gp8, .gbtn.gp9 { color: #fff; }
+[data-theme="glass"] .gp1 { background: var(--ok-d); } [data-theme="glass"] .gp2 { background: var(--ok); }
 [data-theme="handdrawn"] .gbtn { border: var(--border-w) solid var(--ink); box-shadow: var(--shadow-sm); }
 [data-theme="handdrawn"] .gbtn:hover { transform: translate(-1px, -1px); }
 [data-theme="handdrawn"] .gbtn:active { transform: translate(2px, 2px); box-shadow: none; }
 
 .kbd { display: inline-block; border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 5px; padding: 0 7px; font-size: 12px; background: var(--bg); font-family: var(--font-mono); }
 .title-edit input { width: 300px; font-size: 20px; font-weight: 700; padding: 4px 12px; }
+
+/* ---------- 历史：视角切换 + 学生×场次矩阵 ---------- */
+.tabbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.class-tabs { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tabbar .btn.on, .class-tabs .btn.on { color: #fff; background: var(--primary-d); border-color: var(--primary-d); }
+[data-theme="handdrawn"] .tabbar .btn.on, [data-theme="handdrawn"] .class-tabs .btn.on { color: #fff; background: var(--primary); border-color: var(--ink); }
+.matrix-wrap { overflow: auto; max-height: calc(100vh - 230px); border-radius: var(--radius); }
+table.matrix { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 13.5px; }
+.matrix th, .matrix td { border-bottom: 1px solid var(--line); padding: 7px 10px; text-align: center; white-space: nowrap; }
+.matrix thead th { position: sticky; top: 0; background: var(--card); color: var(--ink-2); font-size: 12.5px; }
+.matrix thead th .d { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.matrix thead .col-link { display: block; color: inherit; text-decoration: none; }
+.matrix thead .col-link:hover .col-title { color: var(--primary-d); text-decoration: underline; }
+.matrix .stu-cell { position: sticky; left: 0; background: var(--card); text-align: left; font-weight: 600; z-index: 1; min-width: 96px; }
+.matrix tbody tr:hover td { background: var(--primary-bg); }
+.matrix .col-sum { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 12.5px; border-top: var(--border-w) solid var(--line-2); }
+.m-absent { background: var(--danger-bg); color: var(--danger-d); font-weight: 700; border-radius: 6px; padding: 1px 7px; }
+.m-late { color: var(--amber); font-weight: 700; margin-left: 3px; }
 
 /* ---------- 扫码页（深色全屏独立体系，不跟随主题） ---------- */
 .scan-page { position: fixed; inset: 0; background: #0b0f0d; color: #fff; z-index: 100; display: flex; flex-direction: column; overflow: hidden; }
@@ -326,6 +351,10 @@ table.list tr:last-child td { border-bottom: none; }
   .topnav .brand span { display: none; }
   .page { padding: 12px 10px 60px; }
   .stu-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+  .settings-shell { grid-template-columns: 1fr; }
+  .grade-row { flex-wrap: wrap; }
   table.list th:nth-child(n+4), table.list td:nth-child(n+4) { display: none; }
+  table.list.timeline th:nth-child(4), table.list.timeline td:nth-child(4),
+  table.list.timeline th:nth-child(5), table.list.timeline td:nth-child(5) { display: table-cell; }
   .theme-grid { grid-template-columns: 1fr; }
 }

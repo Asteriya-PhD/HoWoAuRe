@@ -11,6 +11,7 @@
     classes: [],
     students: [],
     sessions: [],
+    settings: { grades: ['A+', 'A', 'A-', '不合格'] },
     classId: null,      // 当前选中班级（响应式，名单/工作台/二维码页共用，localStorage 仅做持久化）
     wsOpen: false,      // WebSocket 连接状态（供视图决定是否降级轮询）
   });
@@ -22,6 +23,7 @@
     state.classes = db.classes;
     state.students = db.students;
     state.sessions = db.sessions;
+    if (db.settings && Array.isArray(db.settings.grades) && db.settings.grades.length) state.settings = db.settings;
     // 选中班级失效（被删/数据还原后 id 变化）时回退到第一个班
     if (!state.classes.some(c => c.id === state.classId)) {
       state.classId = (state.classes[0] && state.classes[0].id) || null;
@@ -51,7 +53,8 @@
   function connectWs() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     try { ws = new WebSocket(`${proto}://${location.host}/ws`); } catch { retry(); return; }
-    ws.onopen = () => { state.wsOpen = true; };
+    // 重连后补拉一次：断线窗口内错过的广播（settings_changed 等）不再永久丢失
+    ws.onopen = () => { state.wsOpen = true; refresh(); };
     ws.onmessage = (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch { return; }
@@ -73,7 +76,7 @@
       for (const set of sessionListeners.values()) for (const fn of set) fn(msg);
       return;
     }
-    if (['classes_changed', 'students_changed', 'sessions_changed'].includes(msg.type)) {
+    if (['classes_changed', 'students_changed', 'sessions_changed', 'settings_changed'].includes(msg.type)) {
       refresh();
       return;
     }
@@ -95,6 +98,13 @@
   }
   function classById(id) { return state.classes.find(c => c.id === id); }
 
+  // 等级配色按「设置列表里的位置」取（gp1..gp9，1 最绿 → 9 最红）；已从配置删除的旧等级落灰
+  function gradePosCls(grade) {
+    if (!grade) return '';
+    const i = (state.settings.grades || []).indexOf(grade);
+    return i < 0 ? 'g-unknown' : 'gp' + (i + 1);
+  }
+
   // 未交名单文案
   function absentText(sessionFull) {
     const t = sessionFull.title ? `「${sessionFull.title}」` : '';
@@ -104,5 +114,5 @@
       absent.map(s => s.name).join('、') + `（共${absent.length}人）`;
   }
 
-  window.Store = { state, init, refresh, onSessionEvent, studentsOf, classById, absentText, connectWs, setClass };
+  window.Store = { state, init, refresh, onSessionEvent, studentsOf, classById, absentText, connectWs, setClass, gradePosCls };
 })();
