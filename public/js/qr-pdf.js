@@ -101,8 +101,8 @@
     let y = M;
 
     if (layout === 'large') {
-      // 1份/人：4列×7行，每页 28 人；码 20mm（密码头班 24mm），格内余量足够静区
-      const cols = 4, cw = (PW - 2 * M) / 4, ch = (PH - 2 * M) / 7;
+      // 1份/人：5列×7行，每页 35 人；码 20mm（密码头班 24mm），格内余量足够静区
+      const cols = 5, cw = (PW - 2 * M) / 5, ch = (PH - 2 * M) / 7;
       const { size: q, maxModules } = classCodeSize(cls, students);
       const dense = maxModules > 25;      // 长学号等密码头：省略副行文字
       let col = 0;
@@ -115,8 +115,8 @@
         doc.rect(x, y, cw, ch);
         const text = payload(cls, stu);
         drawQr(doc, text, x + (cw - q) / 2, y + 2, q);
-        drawLabel(doc, stu.name, x + 12, y + q + 4, cw - 24, 7, { bold: true });
-        if (!dense) drawLabel(doc, `${cls.name} · ${stu.stuNo}`, x + 10, y + q + 12, cw - 20, 4.5, { gray: true });
+        drawLabel(doc, stu.name, x + 6, y + q + 4, cw - 12, 7, { bold: true });
+        if (!dense) drawLabel(doc, `${cls.name} · ${stu.stuNo}`, x + 6, y + q + 12, cw - 12, 4.5, { gray: true });
         col++;
         if (col >= cols) { col = 0; y += ch; }
       }

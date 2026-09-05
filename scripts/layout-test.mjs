@@ -14,7 +14,7 @@ qrcode.stringToBytes = s => Array.from(new TextEncoder().encode(s));
 
 // ---- 与 qr-pdf.js 保持一致的新版几何（单位 mm） ----
 const PW = 210, PH = 297, M = 10;
-const COLS = 4, ROWS = 7, Q = 20;
+const COLS = 5, ROWS = 7, Q = 20;
 const CW = (PW - 2 * M) / COLS, CH = (PH - 2 * M) / ROWS;
 const students = ['王晓明', '李思思', '张伟', '刘洋', '陈静', '杨帆', '赵磊', '黄丽', '周杰', '吴敏'];
 
@@ -86,7 +86,7 @@ for (let y = 0; y < bandH; y++) {
   const sy = Math.min(PHx - 1, bandY0 + y);
   band.data.set(sheet.data.subarray(sy * PWx * 4, sy * PWx * 4 + PWx * 4), y * PWx * 4);
 }
-const bandRow = [1, 2].flatMap(row => [0, 1, 2, 3].map(c => row * COLS + c)).filter(i => i < layout.length);
+const bandRow = [1, 2].flatMap(row => [0, 1, 2, 3, 4].map(c => row * COLS + c)).filter(i => i < layout.length);
 const bandWant = new Set(bandRow.map(i => layout[i].text));
 const r2 = await zx(band.imageData());
 const h2 = report('  常规一遍', r2.r ?? r2, bandWant);
@@ -110,6 +110,6 @@ rot.fill(250, 250, 250);
 const r3 = await zx(rot.imageData());
 const h3 = report('  常规一遍', r3.r ?? r3, null);
 
-const total = (full.r ? full.r.length : full.length) >= 10 && h2 === 6 && h3 >= 10;
+const total = (full.r ? full.r.length : full.length) >= students.length && h2 === bandWant.size && h3 >= students.length;
 console.log(total ? '\n通过：新版式几何全部识别' : '\n存在漏检');
 process.exit(total ? 0 : 1);
