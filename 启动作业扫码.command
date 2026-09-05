@@ -16,6 +16,5 @@ if [ ! -d node_modules ]; then
 fi
 
 echo "正在启动服务…"
-open "http://localhost:3000" 2>/dev/null
-node server.js
+node server.js --open
 read -n 1 -s -r -p "服务已停止，按任意键关闭…"

@@ -34,6 +34,9 @@ function argStr(name) {
 }
 const HTTP_PORT_BASE = argNum('http', 3000);
 const HTTPS_PORT_BASE = argNum('https', 3443);
+// --open：启动完成后用系统默认浏览器打开电脑端界面（端口以实际监听为准，
+// 双击启动脚本用这个参数，避免脚本里硬编码端口在顺延后打不开）
+const OPEN_BROWSER = process.argv.includes('--open');
 // 桌面 App 模式用 --data-dir 把数据指到用户目录（.app 包内只读）；默认仍是项目内 data/
 const DATA_DIR = path.resolve(argStr('data-dir') || process.env.HWSCAN_DATA_DIR || path.join(__dirname, 'data'));
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
@@ -77,8 +80,7 @@ function loadDb() {
     // 每次启动自动备份，保留最近 20 份
     const backup = path.join(BACKUP_DIR, 'db-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json');
     fs.copyFileSync(DB_FILE, backup);
-    const backups = fs.readdirSync(BACKUP_DIR).filter(f => f.startsWith('db-')).sort();
-    while (backups.length > 20) fs.unlinkSync(path.join(BACKUP_DIR, backups.shift()));
+    pruneBackups();
   }
 }
 
@@ -94,6 +96,19 @@ function saveDb() {
 }
 
 const nextId = () => ++db.counter;
+
+// 备份目录统一清理（B2）：db-*/export-*/db-before-import-* 各保留最近 N 份，防止长期使用撑满磁盘
+function pruneBackups() {
+  try {
+    const CAP = { 'db-before-import-': 10, 'export-': 10, 'db-': 20 };
+    const files = fs.readdirSync(BACKUP_DIR);
+    for (const [prefix, keep] of Object.entries(CAP)) {
+      const list = files.filter(f => f.startsWith(prefix) && f.endsWith('.json')
+        && (prefix !== 'db-' || !f.startsWith('db-before-import-'))).sort();
+      while (list.length > keep) fs.unlinkSync(path.join(BACKUP_DIR, list.shift()));
+    }
+  } catch (e) { console.error('备份清理失败:', e.message); }
+}
 
 // WebSocket 广播（启动后替换为实际实现）
 let broadcast = () => {};
@@ -127,6 +142,7 @@ async function loadCert() {
       const crt = fs.readFileSync(CERT_CRT, 'utf8');
       const meta = JSON.parse(fs.readFileSync(CERT_CRT + '.meta.json', 'utf8'));
       if (meta.sans && meta.sans.length === sans.length && sans.every(ip => meta.sans.includes(ip))) {
+        try { fs.chmodSync(CERT_KEY, 0o600); } catch { /* 忽略 */ }
         return { key: fs.readFileSync(CERT_KEY, 'utf8'), cert: crt };
       }
       console.log('局域网 IP 已变化，重新生成 HTTPS 证书…');
@@ -142,6 +158,7 @@ async function loadCert() {
   fs.writeFileSync(CERT_KEY, pems.private);
   fs.writeFileSync(CERT_CRT, pems.cert);
   fs.writeFileSync(CERT_CRT + '.meta.json', JSON.stringify({ sans }));
+  try { fs.chmodSync(CERT_KEY, 0o600); } catch { /* Windows 上无 POSIX 权限，忽略 */ }
   return { key: pems.private, cert: pems.cert };
 }
 
@@ -333,6 +350,7 @@ api.get('/export', (req, res) => {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     fs.writeFileSync(path.join(BACKUP_DIR, 'export-' + ts + '.json'), JSON.stringify(db));
+    pruneBackups();
     res.set('X-Backup-Saved', '1');
   } catch (e) {
     console.error('导出副本写入失败:', e.message);
@@ -392,6 +410,7 @@ api.post('/import', (req, res) => {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, 'db-before-import-' + ts + '.json'));
+  pruneBackups();
   db = { counter, classes, students, sessions, settings: { ...normalizeSettings(db.settings), grades: normalizeGrades(d.settings && d.settings.grades) } };
   saveDbNow();
   broadcast({ type: 'db_changed' });
@@ -577,9 +596,17 @@ async function start() {
   }
 
   // 手机端必须走 HTTPS 才能用摄像头：非本机访问 HTTP 时自动跳转 HTTPS
+  // 跳转目标只允许本机局域网地址（S1：Host 头来自请求，不可信，不能原样回填）
+  const myHosts = new Set(['localhost', '127.0.0.1', ...lanIps()]);
   httpSrv.on('request', (req, res) => {
     if (httpsPort) {
       const host = (req.headers.host || '').split(':')[0];
+      if (!myHosts.has(host)) {
+        // Host 不是本机：拒绝服务而非转发（防止被当明文入口/开放重定向）
+        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('请使用电脑端页面上的二维码地址访问');
+        return;
+      }
       if (host !== 'localhost' && host !== '127.0.0.1' && !req.url.startsWith('/ws')) {
         res.writeHead(302, { Location: `https://${host}:${httpsPort}${req.url}` });
         res.end();
@@ -591,8 +618,23 @@ async function start() {
   const wsClients = new Set();
   for (const srv of [httpSrv, httpsSrv]) {
     srv.on('upgrade', (req, socket, head) => {
-      if (req.url === '/ws') wss.handleUpgrade(req, socket, head, ws => wsClients.add(ws));
-      else socket.destroy();
+      // S2：只接受本机地址作为握手 Host；浏览器握手必带 Origin，第三方网页（origin 是别人
+      // 的站点）直接拒绝，防同网段恶意页面偷听广播。非浏览器客户端（无 Origin）与 HTTP API
+      // 同一信任级别，不额外拦截。
+      const host = (req.headers.host || '').split(':')[0];
+      const origin = req.headers.origin || '';
+      // 手机扫码页走 https://局域网IP:端口；老师电脑/Tauri 壳走 http://localhost:HTTP端口
+      const okOrigins = host === 'localhost' || host === '127.0.0.1'
+        ? [`http://${host}:${httpPort}`, `https://${host}:${httpsPort}`]
+        : [`https://${host}:${httpsPort}`];
+      if (req.url !== '/ws' || !myHosts.has(host) || (origin && !okOrigins.includes(origin))) {
+        socket.destroy(); return;
+      }
+      wss.handleUpgrade(req, socket, head, ws => {
+        wsClients.add(ws);
+        ws.on('close', () => wsClients.delete(ws)); // B1：及时清理，否则死连接常驻内存
+        ws.on('error', () => ws.terminate());
+      });
     });
   }
   broadcast = (msg) => {
@@ -612,6 +654,18 @@ async function start() {
   console.log(`  数据文件:    ${DB_FILE}`);
   console.log('  关闭本窗口或按 Ctrl+C 即停止服务');
   console.log('==============================================');
+
+  // --open：由服务自己打开浏览器，端口以实际监听为准（脚本里硬编码端口会在顺延后打不开）
+  if (OPEN_BROWSER && httpPort) {
+    const url = `http://localhost:${httpPort}`;
+    try {
+      const { execFile } = require('child_process');
+      // 参数数组形式，不经 shell 拼接；url 只含 localhost 与数字端口
+      if (process.platform === 'win32') execFile('cmd', ['/c', 'start', '', url], () => {});
+      else if (process.platform === 'darwin') execFile('open', [url], () => {});
+      else execFile('xdg-open', [url], () => {});
+    } catch { /* 打不开就让老师手动复制上面的地址 */ }
+  }
 }
 
 process.on('SIGINT', () => { saveDbNow(); process.exit(0); });

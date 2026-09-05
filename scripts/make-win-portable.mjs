@@ -70,10 +70,9 @@ const BAT = [
   '  exit /b 1',
   ')',
   '',
-  'echo 正在启动服务，3 秒后自动打开浏览器...',
+  'echo 正在启动服务，浏览器将自动打开...',
   'echo 请勿关闭本窗口，关窗即停止服务。',
-  'start "" /min cmd /c "timeout /t 3 /nobreak >nul & start "" http://localhost:3000"',
-  '"%NODE_EXE%" server.js',
+  '"%NODE_EXE%" server.js --open',
   '',
   'echo.',
   'echo 服务已停止。',
@@ -124,10 +123,10 @@ async function main() {
   fs.rmSync(ZIP, { force: true });
   fs.mkdirSync(BUILD, { recursive: true });
 
-  // 1) 便携版 node.exe（tar 为 macOS/Windows 自带 bsdtar；--strip-components 去掉顶层版本目录）
+  // 1) 便携版 node.exe（只取 zip 里那一个文件；整包解压会多出 npm 等 2500 个无用文件）
   console.log('提取 node.exe…');
   fs.mkdirSync(path.join(BUILD, 'node'), { recursive: true });
-  execFileSync('tar', ['-xf', nodeZip, '-C', path.join(BUILD, 'node'), '--strip-components=1']);
+  execFileSync('tar', ['-xf', nodeZip, '-C', path.join(BUILD, 'node'), '--strip-components=1', '*/node.exe']);
 
   // 2) 生产依赖（npm ci 按锁文件精确安装，避开开发依赖；全部纯 JS，跨平台可用）
   console.log('安装生产依赖…');

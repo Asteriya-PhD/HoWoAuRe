@@ -19,6 +19,5 @@ if not exist node_modules (
 )
 
 echo 正在启动服务...
-start "" "http://localhost:3000"
-node server.js
+node server.js --open
 pause
