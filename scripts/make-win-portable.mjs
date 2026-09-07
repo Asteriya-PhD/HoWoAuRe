@@ -90,6 +90,8 @@ const TXT = `作业扫码登记 — Windows 免安装版 使用说明
    - 若弹出「Windows 已保护你的电脑 / 安全警告」，点「更多信息 → 仍要运行」或「运行」。
    - 第一次运行会弹出防火墙提示「是否允许 node.exe 访问网络」，务必勾选
      「专用网络」并点「允许访问」，否则手机连不上电脑。
+   - 可选：双击「创建桌面快捷方式.bat」，会在桌面生成带应用图标的
+     「作业扫码登记」快捷方式，以后双击它启动即可，不用再进文件夹。
 3. 浏览器会自动打开电脑端界面，按页面提示：新建班级 → 导入名单 →
    生成二维码 PDF 打印贴纸 → 开始收作业。
 
@@ -113,6 +115,30 @@ const TXT = `作业扫码登记 — Windows 免安装版 使用说明
 - 想清空全部数据：关闭服务后，删除 data\\ 文件夹里的 db.json 再启动。
 - 更多用法（批量打等级、导出 Excel、演示模式等）见电脑端页面内的引导。
 `;
+
+const SHORTCUT_BAT = [
+  '@echo off',
+  'chcp 65001 >nul',
+  'powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0make-shortcut.ps1" -Dir "%~dp0"',
+  'pause',
+  '',
+].join('\r\n');
+
+// PowerShell 5.1 只有带 BOM 的 UTF-8 才按 UTF-8 解析，中文注释/文件名必须带 BOM
+const SHORTCUT_PS1 = [
+  'param([string]$Dir = (Split-Path -Parent $MyInvocation.MyCommand.Path))',
+  "$ws = New-Object -ComObject WScript.Shell",
+  "$desktop = [Environment]::GetFolderPath('Desktop')",
+  "$lnk = $ws.CreateShortcut((Join-Path $desktop '作业扫码登记.lnk'))",
+  "$lnk.TargetPath = (Join-Path $Dir '启动作业扫码.bat')",
+  "$lnk.WorkingDirectory = $Dir",
+  "$lnk.IconLocation = (Join-Path $Dir 'icon.ico') + ',0'",
+  "$lnk.Description = '作业扫码登记 — 局域网作业收集'",
+  "$lnk.Save()",
+  "Write-Host ''",
+  "Write-Host '已在桌面创建「作业扫码登记」快捷方式（带应用图标）。'",
+  '',
+].join('\r\n');
 
 async function main() {
   const nodeZip = await ensureNodeZip();
@@ -145,9 +171,12 @@ async function main() {
   fs.copyFileSync(path.join(ROOT, 'package.json'), path.join(BUILD, 'package.json'));
   fs.cpSync(path.join(ROOT, 'public'), path.join(BUILD, 'public'), { recursive: true });
 
-  // 4) 启动器与说明
-  console.log('写入启动器与使用说明…');
+  // 4) 启动器、图标与说明
+  console.log('写入启动器、图标与使用说明…');
   fs.writeFileSync(path.join(BUILD, '启动作业扫码.bat'), BAT, 'utf8');
+  fs.writeFileSync(path.join(BUILD, '创建桌面快捷方式.bat'), SHORTCUT_BAT, 'utf8');
+  fs.writeFileSync(path.join(BUILD, 'make-shortcut.ps1'), '\ufeff' + SHORTCUT_PS1, 'utf8');
+  fs.copyFileSync(path.join(ROOT, 'src-tauri/icons/icon.ico'), path.join(BUILD, 'icon.ico'));
   fs.writeFileSync(path.join(BUILD, '使用说明.txt'), '\ufeff' + TXT, 'utf8');
 
   // 5) 清理 macOS 垃圾文件后打 zip（tar -a 按扩展名选 zip 格式，文件名 UTF-8，Windows 解压不乱码）
