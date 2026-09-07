@@ -1,4 +1,4 @@
-// 二维码批量生成：三种排版 A4 PDF + 勾选补打
+// 二维码批量生成：两种排版 A4 PDF + 勾选补打
 (function () {
   'use strict';
   const { api, toast, registerView, download } = window.App;
@@ -14,8 +14,7 @@
         busy: false,
         layouts: [
           { key: 'large', name: '1份/人', desc: '20mm 码带规范静区间隙，5列×7行每页 35 人' },
-          { key: 'row6', name: '1行/人（6个）', desc: '每生 6 个 18mm 小码，坏了就换，一学期够用' },
-          { key: 'page36', name: '1页/人（96个）', desc: '整页同一名学生，适合打印备用/发给家长' },
+          { key: 'ticket', name: '准考证卡贴', desc: '全班排成一列，每生一张 20mm 码卡贴，适合淘宝打印裁切' },
         ],
       };
     },

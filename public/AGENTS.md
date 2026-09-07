@@ -13,7 +13,7 @@ public/
 │   ├── store.js      # 全局状态 + WebSocket 实时同步（connectWs/broadcast handle）
 │   ├── scan-engine.js# 摄像头引擎：补光/变焦/换镜头/广角预览/抓帧诊断
 │   ├── qr-hunt.js    # 一帧多码识别核心 findMulti()（BarcodeDetector→ZXing→jsQR 回退）
-│   ├── qr-pdf.js     # jsPDF 二维码贴纸排版（1份/人、1行6个、1页36个）
+│   ├── qr-pdf.js     # jsPDF 二维码贴纸排版（1份/人 5×7、准考证卡贴一列）
 │   ├── audio.js      # 识别成功提示音
 │   ├── util.js       # 通用工具
 │   └── views/        # 每视图一个自包含 JS 对象：home 工作台 / roster 名单 / qr 生成 / scan 手机扫码 / live 大屏 / grade 批改 / history 历史

@@ -85,7 +85,7 @@
 
   /**
    * 生成贴纸 PDF
-   * @param {object} p { cls, students, layout: 'large'|'row6'|'page36' }
+   * @param {object} p { cls, students, layout: 'large'|'ticket' }
    * @returns jsPDF document
    */
   function generateStickers(p) {
@@ -126,37 +126,24 @@
         doc.setTextColor(150);
         doc.text(`注：本班学号较长，二维码已自动放大（密度 ${maxModules} 模块）`, PW / 2, PH - 4, { align: 'center' });
       }
-    } else if (layout === 'row6') {
-      // 1行/人（6个）：18mm 码 + 4mm 间隙（≥4 模块静区），行高 30mm，每页 9 行
-      const per = 6, q = 18, gap = 4, rh = 30;
-      for (const stu of students) {
-        y = pageBreak(y, rh);
-        const text = payload(cls, stu);
-        const total = per * q + (per - 1) * gap;
-        const x0 = (PW - total) / 2;
-        for (let i = 0; i < per; i++) {
-          const x = x0 + i * (q + gap);
-          drawQr(doc, text, x, y, q);
-          drawLabel(doc, stu.name, x - 1, y + q + 1.5, q + 2, 6.5, { bold: true });
-        }
-        y += rh;
-      }
     } else {
-      // 1页/人（96个）：8列×12行，18mm 码 + 3mm 间隙
-      const per = 8, rows = 12, q = 18, gap = 3;
+      // 准考证式卡贴：全班按名单排成一列，每生一张竖版卡贴——上二维码，下姓名/班级·学号
+      // （码与 5×7 版同大小），适合拿去淘宝定制打印——逐张裁切后就是一张张小卡贴
+      const { size: q } = classCodeSize(cls, students);
+      const pad = 4, gap = 3, cardW = 40, nameH = 7, subH = 4.5;
+      const cardH = pad + q + 2.5 + nameH + 1.5 + subH + pad;
       for (const stu of students) {
-        y = pageBreak(y, 14 + rows * (q + gap));
-        drawLabel(doc, `${cls.name} ${stu.name}（学号 ${stu.stuNo}）`, M, y, PW - 2 * M, 6, { gray: true });
-        y += 8;
-        const total = per * q + (per - 1) * gap;
-        const x0 = (PW - total) / 2;
-        const text = payload(cls, stu);
-        for (let r = 0; r < rows; r++) {
-          if (y + q > PH - M) break;
-          for (let c = 0; c < per; c++) drawQr(doc, text, x0 + c * (q + gap), y, q);
-          y += q + gap;
-        }
-        y += 4;
+        y = pageBreak(y, cardH + gap);
+        const x = (PW - cardW) / 2;
+        // 浅灰描边当裁切参考线（在静区之外）
+        doc.setDrawColor(215);
+        doc.setLineWidth(0.2);
+        doc.rect(x, y, cardW, cardH);
+        drawQr(doc, payload(cls, stu), x + (cardW - q) / 2, y + pad, q);
+        const inner = cardW - 2 * pad, ty = y + pad + q + 2.5;
+        drawLabel(doc, stu.name, x + pad, ty, inner, nameH, { bold: true });
+        drawLabel(doc, `${cls.name} · ${stu.stuNo}`, x + pad, ty + nameH + 1.5, inner, subH, { gray: true });
+        y += cardH + gap;
       }
     }
     return doc;
