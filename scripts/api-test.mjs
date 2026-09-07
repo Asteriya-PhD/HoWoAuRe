@@ -91,6 +91,53 @@ async function main() {
   full = await req('GET', `/sessions/${sess.id}`);
   check('手动标记补交', full.students.find(s => s.id === stu['李四02']).sub.status === 'late');
 
+  console.log('== 分组检查 ==');
+  const gi = await req('POST', `/classes/${cls.id}/groups-import`, {
+    rows: [
+      { name: '张三', stuNo: '01', group: '第1组' },
+      { name: '李四', stuNo: '02', group: '第1组' },
+      { name: '王五', stuNo: '03', group: '第2组' },
+      { name: '赵六', stuNo: '04', group: '第2组' },
+      { name: '张三', stuNo: '05', group: '第1组' },
+      { name: '马七', group: '第1组' },
+    ],
+  });
+  check('分组导入更新 5 人', gi.updated === 5, JSON.stringify(gi));
+  check('名单外姓名报 unmatched', Array.isArray(gi.unmatched) && gi.unmatched.includes('马七'), JSON.stringify(gi));
+  const afterGroup = await req('GET', `/classes/${cls.id}/students`);
+  check('同名张三(05)按学号消歧成第1组', afterGroup.find(s => s.stuNo === '05').group === '第1组');
+
+  const gsess = await req('POST', '/sessions', { classId: cls.id, subject: '语文', groups: ['第1组'] });
+  check('分组场次 groups 落库', Array.isArray(gsess.groups) && gsess.groups.length === 1, JSON.stringify(gsess));
+
+  r = await scan(gsess.id, `HW|${cls.id}|02|李四`);
+  check('组内学生可登记', r.ok && r.order === 1, JSON.stringify(r));
+  check('分组场次统计分母=组内人数(3)', r.stats && r.stats.total === 3, JSON.stringify(r.stats));
+
+  r = await scan(gsess.id, `HW|${cls.id}|03|王五`);
+  check('组外学生被拒收 not_in_group', r.ok === false && r.reason === 'not_in_group' && r.student.name === '王五', JSON.stringify(r));
+
+  r = await scan(gsess.id, `HW|${cls.id}|05|张三`);
+  check('同名组内学生按学号正常登记', r.ok && r.order === 2, JSON.stringify(r));
+
+  await req('POST', `/sessions/${gsess.id}/closed`, { closed: true });
+  r = await scan(gsess.id, `HW|${cls.id}|01|张三`);
+  check('分组截止后组内扫码 → 补交', r.ok && r.status === 'late', JSON.stringify(r));
+
+  let gfull = await req('GET', `/sessions/${gsess.id}`);
+  check('分组场次学生列表只含组内 3 人', gfull.students.length === 3 && !gfull.students.some(s => s.stuNo === '03'), JSON.stringify(gfull.students.map(s => s.stuNo)));
+  check('分组场次统计 3/3（2已交+1补交）', gfull.stats.total === 3 && gfull.stats.submitted + gfull.stats.late === 3, JSON.stringify(gfull.stats));
+
+  const g2 = await req('POST', '/sessions', { classId: cls.id, subject: '英语', groups: ['第1组', '第2组'] });
+  r = await scan(g2.id, `HW|${cls.id}|03|王五`);
+  check('多组场次第2组学生可登记', r.ok, JSON.stringify(r));
+  check('多组场次统计分母=两组人数(5)', r.stats && r.stats.total === 5, JSON.stringify(r.stats));
+
+  const gc = await req('POST', `/classes/${cls.id}/groups-clear`, {});
+  check('清空分组 5 人', gc.cleared === 5, JSON.stringify(gc));
+  const afterClear = await req('GET', `/classes/${cls.id}/students`);
+  check('清空后无组别', afterClear.every(s => !s.group));
+
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
   process.exit(fail ? 1 : 0);
 }

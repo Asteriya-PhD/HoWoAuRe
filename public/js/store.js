@@ -69,6 +69,42 @@
     wsTimer = setTimeout(connectWs, 2000);
   }
 
+  // 场次级事件同步进 state.sessions：工作台/历史等不订阅场次详情的视图才能实时刷新
+  // （广播消息本身带最新 stats/order/status，就地记账即可，无需额外拉取）
+  function applySessionMsg(msg) {
+    const sess = state.sessions.find(s => s.id === msg.sid);
+    if (!sess) return;
+    if (msg.stats) sess.stats = msg.stats;
+    const subs = sess.submissions || (sess.submissions = {});
+    switch (msg.type) {
+      case 'scan':
+        subs[msg.studentId] = { order: msg.order, time: msg.time, status: msg.status, grade: null };
+        break;
+      case 'unsubmit':
+        delete subs[msg.studentId];
+        break;
+      case 'setlate': {
+        const sub = subs[msg.studentId];
+        if (sub) sub.status = msg.status;
+        break;
+      }
+      case 'grade': {
+        const sub = subs[msg.studentId];
+        if (sub) sub.grade = msg.grade;
+        break;
+      }
+      case 'grade_batch':
+        for (const id of msg.studentIds) {
+          const sub = subs[id];
+          if (sub) sub.grade = msg.grade;
+        }
+        break;
+      case 'session_closed':
+        sess.closed = msg.closed;
+        break;
+    }
+  }
+
   function handle(msg) {
     // db_changed：除全局刷新外，还要通知所有持有本地场次状态的视图（大屏/批改/扫码页）
     if (msg.type === 'db_changed') {
@@ -81,6 +117,7 @@
       return;
     }
     if (msg.sid != null) {
+      applySessionMsg(msg);
       const set = sessionListeners.get(msg.sid);
       if (set) for (const fn of set) fn(msg);
     }
@@ -97,6 +134,12 @@
     return state.students.filter(s => s.classId === classId).sort((a, b) => (a.stuNo > b.stuNo ? 1 : -1));
   }
   function classById(id) { return state.classes.find(c => c.id === id); }
+  // 班级里的全部组名（学生 group 字段去重，按学号序首次出现排序）
+  function groupsOf(classId) {
+    const seen = new Set();
+    for (const s of studentsOf(classId)) if (s.group) seen.add(s.group);
+    return [...seen];
+  }
 
   // 等级配色按「设置列表里的位置」取（gp1..gp9，1 最绿 → 9 最红）；已从配置删除的旧等级落灰
   function gradePosCls(grade) {
@@ -114,5 +157,5 @@
       absent.map(s => s.name).join('、') + `（共${absent.length}人）`;
   }
 
-  window.Store = { state, init, refresh, onSessionEvent, studentsOf, classById, absentText, connectWs, setClass, gradePosCls };
+  window.Store = { state, init, refresh, onSessionEvent, studentsOf, classById, groupsOf, absentText, connectWs, setClass, gradePosCls };
 })();

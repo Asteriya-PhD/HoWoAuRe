@@ -61,6 +61,13 @@ function normalizeGrades(list) {
 }
 const normalizeSettings = (s) => (s && typeof s === 'object' && !Array.isArray(s)) ? s : {};
 
+// 组别名规范化：剥零宽字符、收空白、限长 12（与等级名同一套卫生标准）
+const normGroup = (g) => String(g ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim().replace(/\s+/g, ' ').slice(0, 12);
+// 场次的 groups 字段：去重去空、限 20 个；空数组 = 收全班（向后兼容旧场次）
+const normGroups = (list) => Array.isArray(list)
+  ? [...new Set(list.map(normGroup).filter(Boolean))].slice(0, 20)
+  : [];
+
 let db = { counter: 0, classes: [], students: [], sessions: [], settings: { grades: DEFAULT_GRADES.slice() } };
 let saveTimer = null;
 
@@ -186,7 +193,12 @@ function sessionStats(session) {
   const ids = Object.keys(session.submissions);
   const submitted = ids.filter(id => session.submissions[id].status === 'ok').length;
   const late = ids.length - submitted;
-  return { submitted, late, total: studentsOfClass(session.classId).length };
+  const groups = normGroups(session.groups);
+  // 分组场次分母只算所选组人数；未分组/普通场次 = 全班
+  const total = groups.length
+    ? studentsOfClass(session.classId).filter(s => groups.includes(s.group)).length
+    : studentsOfClass(session.classId).length;
+  return { submitted, late, total };
 }
 
 // 扫码登记：解析二维码 → 校验 → 去重 → 按顺序登记
@@ -207,6 +219,17 @@ function doScan(session, code) {
     } else {
       return { ok: false, reason: 'not_found', message: `${parsed.name} 不在「${cls ? cls.name : '?'}」名单中` };
     }
+  }
+
+  // 分组检查：不属于所选组的学生拒收（按组名动态匹配，改名单里的组别即时生效）
+  const sessionGroups = normGroups(session.groups);
+  if (sessionGroups.length && !sessionGroups.includes(student.group || '')) {
+    return {
+      ok: false,
+      reason: 'not_in_group',
+      student,
+      message: `${student.name} 不在本次分组（本次只收：${sessionGroups.join('、')}）`,
+    };
   }
 
   if (session.submissions[student.id]) {
@@ -288,11 +311,12 @@ api.put('/students/:id', (req, res) => {
   if (!stu) return res.status(404).json({ message: '学生不存在' });
   const name = String(req.body.name ?? stu.name).trim();
   const stuNo = String(req.body.stuNo ?? stu.stuNo).trim();
+  const group = normGroup(req.body.group ?? stu.group);
   if (!name) return res.status(400).json({ message: '姓名不能为空' });
   if (db.students.some(s => s.classId === stu.classId && s.id !== stu.id && s.stuNo === stuNo)) {
     return res.status(400).json({ message: `学号 ${stuNo} 已存在` });
   }
-  Object.assign(stu, { name, stuNo });
+  Object.assign(stu, { name, stuNo, group });
   saveDb();
   broadcast({ type: 'students_changed', classId: stu.classId });
   res.json(stu);
@@ -334,13 +358,55 @@ api.post('/classes/:id/import', (req, res) => {
   const added = [];
   for (const stu of cleaned) {
     if (stu.skip) continue;
-    const rec = { id: nextId(), classId: cls.id, name: stu.name, stuNo: stu.stuNo };
+    const rec = { id: nextId(), classId: cls.id, name: stu.name, stuNo: stu.stuNo, group: '' };
     db.students.push(rec);
     added.push(rec);
   }
   saveDb();
   broadcast({ type: 'students_changed', classId: cls.id });
   res.json({ added: added.length, total: studentsOfClass(cls.id).length });
+});
+
+// ----- 分组 -----
+// 分组导入：{ rows:[{name, stuNo?, group}] } → 按姓名匹配已有名单更新 group 字段
+// 同名学生多时用学号消歧；匹配不上的原样报回，前端提示老师核对
+api.post('/classes/:id/groups-import', (req, res) => {
+  const cls = classById(+req.params.id);
+  if (!cls) return res.status(404).json({ message: '班级不存在' });
+  const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+  const classmates = studentsOfClass(cls.id);
+  const assign = new Map();
+  const unmatched = [];
+  for (const row of rows) {
+    const name = String(row.name || '').trim().replace(/\s+/g, '');
+    const group = normGroup(row.group);
+    if (!name || !group) continue;
+    const stuNo = String(row.stuNo ?? '').trim();
+    const byName = classmates.filter(s => s.name === name);
+    let hit = byName.length === 1 ? byName[0]
+      : (stuNo ? byName.find(s => s.stuNo === stuNo) : null);
+    if (!hit) { unmatched.push(name); continue; }
+    assign.set(hit.id, group);
+  }
+  for (const [id, group] of assign) {
+    const stu = db.students.find(s => s.id === id);
+    if (stu && stu.group !== group) stu.group = group;
+  }
+  saveDb();
+  broadcast({ type: 'students_changed', classId: cls.id });
+  res.json({ updated: assign.size, unmatched: [...new Set(unmatched)].slice(0, 20) });
+});
+
+api.post('/classes/:id/groups-clear', (req, res) => {
+  const cls = classById(+req.params.id);
+  if (!cls) return res.status(404).json({ message: '班级不存在' });
+  let n = 0;
+  for (const s of studentsOfClass(cls.id)) if (s.group) { s.group = ''; n++; }
+  if (n) {
+    saveDb();
+    broadcast({ type: 'students_changed', classId: cls.id });
+  }
+  res.json({ cleared: n });
 });
 
 // ----- 数据备份/还原（导出文件就是 db.json 原始结构，App 版菜单「导入旧数据」可直接导入） -----
@@ -384,7 +450,7 @@ api.post('/import', (req, res) => {
     .map(c => ({ id: c.id, name: c.name.trim(), createdAt: Number.isFinite(c.createdAt) ? c.createdAt : Date.now() }));
   const students = d.students
     .filter(s => s && Number.isInteger(s.classId) && typeof s.name === 'string' && s.name.trim() && uniqueId(s.id))
-    .map(s => ({ id: s.id, classId: s.classId, name: s.name.trim(), stuNo: String(s.stuNo ?? '') }));
+    .map(s => ({ id: s.id, classId: s.classId, name: s.name.trim(), stuNo: String(s.stuNo ?? ''), group: normGroup(s.group) }));
   const sessions = (Array.isArray(d.sessions) ? d.sessions : [])
     .filter(s => s && Number.isInteger(s.classId) && s.submissions && typeof s.submissions === 'object' && !Array.isArray(s.submissions) && uniqueId(s.id))
     .map(s => ({
@@ -395,6 +461,7 @@ api.post('/import', (req, res) => {
       date: /^\d{4}-\d{2}-\d{2}$/.test(s.date || '') ? s.date : '',
       createdAt: Number.isFinite(s.createdAt) ? s.createdAt : Date.now(),
       closed: !!s.closed,
+      groups: normGroups(s.groups),
       submissions: cleanSubs(s.submissions),
     }));
   if (!classes.length) return res.status(400).json({ message: '备份文件里没有班级数据' });
@@ -443,7 +510,8 @@ api.post('/sessions', (req, res) => {
   const subject = String(req.body.subject || '作业').trim() || '作业';
   const title = String(req.body.title || '').trim().slice(0, 50);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(req.body.date) ? req.body.date : todayStr();
-  const sess = { id: nextId(), classId: cls.id, subject, title, date, createdAt: Date.now(), closed: false, submissions: {} };
+  const groups = normGroups(req.body.groups);
+  const sess = { id: nextId(), classId: cls.id, subject, title, date, createdAt: Date.now(), closed: false, groups, submissions: {} };
   db.sessions.push(sess);
   saveDb();
   broadcast({ type: 'sessions_changed' });
@@ -467,11 +535,15 @@ api.post('/sessions/:id/title', (req, res) => {
 });
 
 function sessionFull(sess) {
+  // 分组场次：学生列表只给所选组的人——看板/批改/扫码页/导出统一口径，前端无需各自过滤
+  const groups = normGroups(sess.groups);
+  let list = studentsOfClass(sess.classId);
+  if (groups.length) list = list.filter(s => groups.includes(s.group));
   return {
     ...sess,
     stats: sessionStats(sess),
     className: classById(sess.classId)?.name || '?',
-    students: studentsOfClass(sess.classId).map(s => ({
+    students: list.map(s => ({
       ...s, sub: sess.submissions[s.id] || null,
     })),
   };

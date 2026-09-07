@@ -87,5 +87,40 @@
     return out;
   }
 
-  window.App = { api, toast, fmtTime, download, registerView, registry, parseRosterSheet };
+  // 解析分组工作表：表头需同时含「姓名」与含「组」的列（组别/小组/组名）；无表头时第一列姓名、第二列组别
+  // 返回 [{name, stuNo, group}]，姓名或组别为空的行跳过
+  function parseGroupSheet(sheet) {
+    const aoa = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!aoa.length) return [];
+    let headerRow = -1, nameCol = -1, groupCol = -1, noCol = -1;
+    for (let i = 0; i < Math.min(10, aoa.length); i++) {
+      const row = aoa[i].map(c => String(c).trim());
+      const ni = row.findIndex(c => c.includes('姓名'));
+      const gi = row.findIndex(c => c.includes('组'));
+      if (ni >= 0 && gi >= 0 && ni !== gi) {
+        headerRow = i; nameCol = ni; groupCol = gi;
+        noCol = row.findIndex(c => c && c !== row[ni] && c !== row[gi] && (c.includes('学号') || c.includes('编号') || c.includes('学籍号')));
+        break;
+      }
+    }
+    const out = [];
+    if (headerRow >= 0) {
+      for (let i = headerRow + 1; i < aoa.length; i++) {
+        const name = String(aoa[i][nameCol] ?? '').trim().replace(/\s+/g, '');
+        const group = String(aoa[i][groupCol] ?? '').trim();
+        if (!name || !group) continue;
+        out.push({ name, group, stuNo: noCol >= 0 ? String(aoa[i][noCol] ?? '').trim() : '' });
+      }
+    } else {
+      for (const row of aoa) {
+        const name = String(row[0] ?? '').trim().replace(/\s+/g, '');
+        const group = String(row[1] ?? '').trim();
+        if (!name || name.includes('姓名') || !group) continue;
+        out.push({ name, group, stuNo: '' });
+      }
+    }
+    return out;
+  }
+
+  window.App = { api, toast, fmtTime, download, registerView, registry, parseRosterSheet, parseGroupSheet };
 })();

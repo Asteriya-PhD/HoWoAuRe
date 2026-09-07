@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const { api, toast, registerView } = window.App;
-  const { state, refresh, studentsOf, classById, setClass } = window.Store;
+  const { state, refresh, studentsOf, classById, groupsOf, setClass } = window.Store;
 
   const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'];
   const todayStr = () => { const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
@@ -15,6 +15,8 @@
         subjectCustom: '',
         title: '',
         date: todayStr(),
+        groupMode: false,    // 分组检查：只收勾选的组
+        pickedGroups: [],
         showQrFor: null,   // 显示手机入口二维码的场次 id
         qrDataUrl: '',
         scanUrl: '',
@@ -26,6 +28,7 @@
         set(v) { setClass(v); },
       },
       cls() { return classById(this.classId); },
+      clsGroups() { return this.classId ? groupsOf(this.classId) : []; },
       openSessions() {
         return state.sessions.filter(s => !s.closed).sort((a, b) => b.id - a.id);
       },
@@ -34,14 +37,33 @@
       },
       effectiveSubject() { return (this.subjectCustom.trim() || this.subject); },
     },
+    watch: {
+      // 切班后组别属于另一个班，重置分组选择
+      classId() { this.groupMode = false; this.pickedGroups = []; },
+    },
     methods: {
       studentsOf, classById,
+      toggleGroupMode() {
+        this.groupMode = !this.groupMode;
+        if (!this.groupMode) this.pickedGroups = [];
+        else if (!this.clsGroups.length) {
+          this.groupMode = false;
+          toast('这个班还没有分组，先在「名单」页导入或手动设置组别', 'err');
+        }
+      },
+      toggleGroup(g) {
+        const i = this.pickedGroups.indexOf(g);
+        i >= 0 ? this.pickedGroups.splice(i, 1) : this.pickedGroups.push(g);
+      },
       async createSession() {
         if (!this.classId) return toast('请先在「名单」页创建班级', 'err');
         if (studentsOf(this.classId).length === 0) return toast('这个班还没有学生名单', 'err');
-        const s = await api('POST', '/sessions', { classId: this.classId, subject: this.effectiveSubject, title: this.title.trim(), date: this.date });
+        if (this.groupMode && !this.pickedGroups.length) return toast('请勾选本次要收的组', 'err');
+        const body = { classId: this.classId, subject: this.effectiveSubject, title: this.title.trim(), date: this.date };
+        if (this.groupMode) body.groups = this.pickedGroups.slice();
+        const s = await api('POST', '/sessions', body);
         await refresh();
-        toast('场次已创建，可以把手机拿过来了', 'ok');
+        toast(this.groupMode ? `分组检查场次已创建：只收 ${this.pickedGroups.join('、')}` : '场次已创建，可以把手机拿过来了', 'ok');
         this.title = '';
         this.openQr(s.id);
         this.$router.push(`/live/${s.id}`);
@@ -95,6 +117,14 @@
         <div class="row" style="margin-bottom:12px">
           <input v-model="title" placeholder="作业标题（可选），如：光的干涉" style="width:280px;padding:11px 12px">
         </div>
+        <div class="chips" style="margin-bottom:12px" v-if="cls && clsGroups.length">
+          <span class="chip" :class="{on: groupMode}" @click="toggleGroupMode">分组检查</span>
+          <template v-if="groupMode">
+            <span v-for="g in clsGroups" :key="g" class="chip" :class="{on: pickedGroups.includes(g)}" @click="toggleGroup(g)">{{ g }}</span>
+            <span class="hint">勾选本次要收的组（可多选），未勾选组的学生扫码会被拒收</span>
+          </template>
+          <span class="hint" v-else>默认收全班；点「分组检查」可只收部分组</span>
+        </div>
         <button class="btn primary big" @click="createSession">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           开始收作业
@@ -108,9 +138,9 @@
           <tbody>
             <tr v-for="s in openSessions" :key="s.id">
               <td>{{ (classById(s.classId)||{}).name }}</td>
-              <td><b>{{ s.title || s.subject }}</b><span class="hint" v-if="s.title" style="margin-left:6px">{{ s.subject }}</span></td>
+              <td><b>{{ s.title || s.subject }}</b><span class="hint" v-if="s.title" style="margin-left:6px">{{ s.subject }}</span><span class="tag blue" v-if="s.groups && s.groups.length" style="margin-left:6px">组：{{ s.groups.join('、') }}</span></td>
               <td>{{ s.date }}</td>
-              <td><span class="tag green">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ studentsOf(s.classId).length }}</span></td>
+              <td><span class="tag green">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ s.stats ? s.stats.total : studentsOf(s.classId).length }}</span></td>
               <td>
                 <div class="row">
                   <button class="btn sm primary" @click="openQr(s.id)">
@@ -138,8 +168,8 @@
         <table class="list">
           <tbody>
             <tr v-for="s in recentClosed" :key="s.id">
-                <td>{{ (classById(s.classId)||{}).name }} <b>{{ s.title || s.subject }}</b>{{ s.title ? '（' + s.subject + '）' : '' }} {{ s.date }}</td>
-                <td><span class="tag">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ studentsOf(s.classId).length }}</span></td>
+                <td>{{ (classById(s.classId)||{}).name }} <b>{{ s.title || s.subject }}</b>{{ s.title ? '（' + s.subject + '）' : '' }} {{ s.date }}<span class="tag blue" v-if="s.groups && s.groups.length" style="margin-left:6px">组：{{ s.groups.join('、') }}</span></td>
+                <td><span class="tag">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ s.stats ? s.stats.total : studentsOf(s.classId).length }}</span></td>
               <td>
                 <div class="row">
                   <router-link class="btn sm" :to="'/grade/'+s.id">批改</router-link>

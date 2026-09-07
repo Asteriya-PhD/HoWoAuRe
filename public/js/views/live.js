@@ -111,11 +111,11 @@
       },
       exportExcel() {
         const XLSX = window.XLSX;
-        const rows = [['学号', '姓名', '提交状态', '扫码顺序', '提交时间', '等级']];
+        const rows = [['学号', '姓名', '组别', '提交状态', '扫码顺序', '提交时间', '等级']];
         const list = this.session.students.slice().sort((a, b) => (a.stuNo > b.stuNo ? 1 : -1));
         for (const s of list) {
           rows.push([
-            s.stuNo, s.name,
+            s.stuNo, s.name, s.group || '',
             !s.sub ? '未交' : s.sub.status === 'late' ? '补交' : '已交',
             s.sub ? s.sub.order : '',
             s.sub ? new Date(s.sub.time).toLocaleTimeString('zh-CN', { hour12: false }) : '',
@@ -191,6 +191,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:14px;height:14px"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>
           </button>
           <span class="tag" :class="session.closed ? 'blue' : 'green'">{{ session.closed ? '已截止（扫码记补交）' : '收集中' }}</span>
+          <span class="tag blue" v-if="session.groups && session.groups.length" title="分组检查：未勾选组的学生扫码会被拒收">只收：{{ session.groups.join('、') }}</span>
           <div class="spacer"></div>
           <button class="btn sm" @click="showPhoneQrFn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18.5h2"/></svg>

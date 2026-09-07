@@ -42,7 +42,9 @@
           stu,
           cells: cols.map(s => {
             const sub = s.submissions[stu.id] || null;
-            return { sub, absent: !sub, late: !!(sub && sub.status === 'late'), grade: sub && sub.grade };
+            // 分组场次：该学生不属于所选组时不算「缺」，只标记分组外
+            const na = !!(s.groups && s.groups.length && !s.groups.includes(stu.group || ''));
+            return { sub, na, absent: !sub && !na, late: !!(sub && sub.status === 'late'), grade: sub && sub.grade };
           }),
         }));
         return { cols, rows };
@@ -60,14 +62,18 @@
         return state.sessions
           .filter(s => s.classId === this.stu.classId)
           .sort((a, b) => (a.date === b.date ? b.id - a.id : (a.date < b.date ? 1 : -1)))
-          .map(s => ({ s, sub: s.submissions[this.stu.id] || null }));
+          .map(s => {
+            const na = !!(s.groups && s.groups.length && !s.groups.includes(this.stu.group || ''));
+            return { s, sub: s.submissions[this.stu.id] || null, na };
+          });
       },
       stuSummary() {
-        const ok = this.stuTimeline.filter(x => x.sub && x.sub.status === 'ok').length;
-        const late = this.stuTimeline.filter(x => x.sub && x.sub.status === 'late').length;
+        const items = this.stuTimeline.filter(x => !x.na);
+        const ok = items.filter(x => x.sub && x.sub.status === 'ok').length;
+        const late = items.filter(x => x.sub && x.sub.status === 'late').length;
         const grades = {};
-        for (const x of this.stuTimeline) if (x.sub && x.sub.grade) grades[x.sub.grade] = (grades[x.sub.grade] || 0) + 1;
-        return { total: this.stuTimeline.length, ok, late, absent: this.stuTimeline.length - ok - late, grades };
+        for (const x of items) if (x.sub && x.sub.grade) grades[x.sub.grade] = (grades[x.sub.grade] || 0) + 1;
+        return { total: items.length, ok, late, absent: items.length - ok - late, grades };
       },
     },
     watch: {
@@ -120,10 +126,10 @@
           let first = null;
           for (const s of list) {
             const full = await api('GET', `/sessions/${s.id}`);
-            const rows = [['学号', '姓名', '提交状态', '扫码顺序', '提交时间', '等级']];
+            const rows = [['学号', '姓名', '组别', '提交状态', '扫码顺序', '提交时间', '等级']];
             for (const stu of full.students.slice().sort((a, b) => (a.stuNo > b.stuNo ? 1 : -1))) {
               rows.push([
-                stu.stuNo, stu.name,
+                stu.stuNo, stu.name, stu.group || '',
                 !stu.sub ? '未交' : stu.sub.status === 'late' ? '补交' : '已交',
                 stu.sub ? stu.sub.order : '',
                 stu.sub ? new Date(stu.sub.time).toLocaleTimeString('zh-CN', { hour12: false }) : '',
@@ -170,8 +176,8 @@
               <tr v-for="s in list" :key="s.id">
                 <td>{{ s.date }}</td>
                 <td>{{ (classById(s.classId)||{}).name }}</td>
-                <td><b>{{ s.title || s.subject }}</b><span class="hint" v-if="s.title" style="margin-left:6px">{{ s.subject }}</span></td>
-                <td><span class="tag" :class="s.stats && s.stats.submitted + s.stats.late >= studentsOf(s.classId).length ? 'green' : ''">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ studentsOf(s.classId).length }}</span><span class="tag amber" v-if="s.stats && s.stats.late" style="margin-left:4px">补{{ s.stats.late }}</span></td>
+                <td><b>{{ s.title || s.subject }}</b><span class="hint" v-if="s.title" style="margin-left:6px">{{ s.subject }}</span><span class="tag blue" v-if="s.groups && s.groups.length" style="margin-left:6px">组：{{ s.groups.join('、') }}</span></td>
+                <td><span class="tag" :class="s.stats && s.stats.submitted + s.stats.late >= (s.stats ? s.stats.total : studentsOf(s.classId).length) ? 'green' : ''">{{ (s.stats ? s.stats.submitted + s.stats.late : 0) }}/{{ s.stats ? s.stats.total : studentsOf(s.classId).length }}</span><span class="tag amber" v-if="s.stats && s.stats.late" style="margin-left:4px">补{{ s.stats.late }}</span></td>
                 <td>{{ s.closed ? '已截止' : '收集中' }}</td>
                 <td>
                   <div class="row">
@@ -211,7 +217,8 @@
                 <tr v-for="row in matrix.rows" :key="row.stu.id">
                   <td class="stu-cell">{{ row.stu.name }} <span class="hint">{{ row.stu.stuNo }}</span></td>
                   <td v-for="(cell, ci) in row.cells" :key="ci">
-                    <template v-if="!cell.absent">
+                    <span class="hint" v-if="cell.na" title="非本次分组">·</span>
+                    <template v-else-if="!cell.absent">
                       <span class="grade-chip" :class="gradePosCls(cell.grade)" v-if="cell.grade">{{ cell.grade }}</span>
                       <span class="hint" v-else>已</span>
                       <span class="m-late" v-if="cell.late" title="补交">补</span>
@@ -270,7 +277,7 @@
                 <tr v-for="row in stuTimeline" :key="row.s.id">
                   <td>{{ row.s.date }}</td>
                   <td><b>{{ row.s.title || row.s.subject }}</b><span class="hint" v-if="row.s.title" style="margin-left:6px">{{ row.s.subject }}</span></td>
-                  <td><span class="tag" :class="!row.sub ? '' : (row.sub.status === 'late' ? 'amber' : 'green')">{{ !row.sub ? '未交' : row.sub.status === 'late' ? '补交' : '已交' }}</span></td>
+                  <td><span class="hint" v-if="row.na">分组外</span><span class="tag" :class="!row.sub ? '' : (row.sub.status === 'late' ? 'amber' : 'green')" v-else>{{ !row.sub ? '未交' : row.sub.status === 'late' ? '补交' : '已交' }}</span></td>
                   <td><span class="grade-chip" :class="gradePosCls(row.sub && row.sub.grade)" v-if="row.sub && row.sub.grade">{{ row.sub.grade }}</span><span class="hint" v-else>—</span></td>
                   <td class="hint">{{ row.sub ? '#' + row.sub.order + ' · ' + fmtTime(row.sub.time) : '' }}</td>
                 </tr>

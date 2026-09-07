@@ -139,6 +139,7 @@
         <div class="row" style="margin-bottom:10px">
           <h2 style="margin:0">{{ session.className }} · {{ session.subject }}<template v-if="session.title"> ·「{{ session.title }}」</template> · {{ session.date }}</h2>
           <span class="tag green">按扫码顺序 = 作业堆叠顺序</span>
+          <span class="tag blue" v-if="session.groups && session.groups.length">只收：{{ session.groups.join('、') }}</span>
           <div class="spacer"></div>
           <router-link class="btn sm" :to="'/live/'+sid">返回看板</router-link>
         </div>

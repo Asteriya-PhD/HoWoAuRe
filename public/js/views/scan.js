@@ -223,7 +223,8 @@
           } else {
             ScanAudio.bad();
             this.flash('rgba(239,68,68,.6)');
-            this.pushMsg('bad', '无效码', r.message || '不是本班学生码');
+            // not_in_group 等拒收时服务端带回了学生信息，提示直接点名更清楚
+            this.pushMsg('bad', r.student ? r.student.name : '无效码', r.message || '不是本班学生码');
             this._failedAt.set(code.data, Date.now());
           }
         } catch (e) {
@@ -380,7 +381,7 @@
         <p class="hint" style="margin-bottom:16px">请在电脑端「工作台」先开一场收作业，然后用电脑上显示的二维码打开本页。</p>
         <div v-for="s in state.sessions.slice().reverse().slice(0,8)" :key="s.id" style="margin-bottom:8px">
           <button class="btn big" style="width:100%" @click="$router.replace({query:{sid:s.id}}); $router.go(0)">
-            {{ (classById(s.classId)||{}).name }} · {{ s.title || s.subject }} · {{ s.date }}
+            {{ (classById(s.classId)||{}).name }} · {{ s.title || s.subject }}<span v-if="s.groups && s.groups.length"> · 只收{{ s.groups.join('+') }}</span> · {{ s.date }}
           </button>
         </div>
         <div class="empty" v-if="!state.sessions.length">还没有场次，去电脑端创建一个吧</div>
@@ -391,7 +392,8 @@
         <template v-if="session">
           <div style="font-size:40px">📚</div>
           <h1>{{ session.className }} · {{ session.subject }}<template v-if="session.title"> ·「{{ session.title }}」</template></h1>
-          <p class="hint">{{ session.date }} · 全班 {{ total }} 人 · 已交 {{ submitted }} 人<span v-if="lateCount"> · 补交 {{ lateCount }}</span></p>
+          <p class="hint" v-if="session.groups && session.groups.length">{{ session.date }} · 本次只收 {{ session.groups.join('、') }} · 共 {{ total }} 人 · 已交 {{ submitted }} 人<span v-if="lateCount"> · 补交 {{ lateCount }}</span></p>
+          <p class="hint" v-else>{{ session.date }} · 全班 {{ total }} 人 · 已交 {{ submitted }} 人<span v-if="lateCount"> · 补交 {{ lateCount }}</span></p>
           <p class="hint" style="margin:10px 0 4px;text-align:left">
             1️⃣ 全班作业本<b style="color:#fff">码朝上摊开</b><br>
             2️⃣ 点下方按钮，<b style="color:#fff">镜头从左往右扫过去</b><br>

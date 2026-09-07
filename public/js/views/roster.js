@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const { api, toast, registerView } = window.App;
-  const { state, refresh, studentsOf, classById, setClass } = window.Store;
+  const { state, refresh, studentsOf, classById, groupsOf, setClass } = window.Store;
 
   registerView('roster-view', {
     props: { embedded: { type: Boolean, default: false } },
@@ -13,6 +13,9 @@
         newStudent: { name: '', stuNo: '' },
         importPreview: null,
         importMode: 'append',
+        groupPreview: null,
+        groupBusy: false,
+        armClearGroups: false,
         busy: false,
         filter: '',
         armDeleteClass: false,   // 就地二次确认（Tauri 壳不支持 confirm()）
@@ -31,8 +34,10 @@
         const kw = this.filter.trim();
         return kw ? list.filter(s => s.name.includes(kw) || s.stuNo.includes(kw)) : list;
       },
+      groupNames() { return this.classId ? groupsOf(this.classId) : []; },
     },
     methods: {
+      studentsOf,
       async addClass() {
         const name = this.newClassName.trim();
         if (!name) return;
@@ -67,7 +72,7 @@
       },
       async saveStudent(stu) {
         try {
-          await api('PUT', `/students/${stu.id}`, { name: stu.name, stuNo: stu.stuNo });
+          await api('PUT', `/students/${stu.id}`, { name: stu.name, stuNo: stu.stuNo, group: stu.group || '' });
         } catch (e) {
           toast(e.message, 'err');
           refresh();
@@ -116,6 +121,48 @@
         } finally { this.busy = false; }
       },
       cancelImport() { this.importPreview = null; },
+      // ----- 分组 -----
+      async onGroupFile(ev) {
+        const file = ev.target.files[0];
+        ev.target.value = '';
+        if (!file) return;
+        try {
+          const buf = await file.arrayBuffer();
+          const wb = window.XLSX.read(buf, { type: 'array' });
+          const rows = window.App.parseGroupSheet(wb.Sheets[wb.SheetNames[0]]);
+          if (!rows.length) return toast('没有解析到分组：文件需有「姓名」列和「组别」列', 'err');
+          this.groupPreview = { rows, fileName: file.name };
+        } catch (e) {
+          toast('文件解析失败：' + e.message, 'err');
+        }
+      },
+      downloadGroupTemplate() {
+        const aoa = [['姓名', '组别'], ['张三', '第1组'], ['李四', '第2组']];
+        const ws = window.XLSX.utils.aoa_to_sheet(aoa);
+        const wb = window.XLSX.utils.book_new();
+        window.XLSX.utils.book_append_sheet(wb, ws, '分组');
+        window.XLSX.writeFile(wb, '分组模板.xlsx');
+      },
+      async confirmGroupImport() {
+        if (!this.groupPreview || !this.classId) return;
+        this.groupBusy = true;
+        try {
+          const r = await api('POST', `/classes/${this.classId}/groups-import`, { rows: this.groupPreview.rows });
+          const extra = r.unmatched.length ? `；没匹配上：${r.unmatched.join('、')}` : '';
+          toast(`分组已更新 ${r.updated} 人${extra}`, r.unmatched.length ? '' : 'ok', 4000);
+          this.groupPreview = null;
+          await refresh();
+        } catch (e) {
+          toast(e.message, 'err');
+        } finally { this.groupBusy = false; }
+      },
+      cancelGroupImport() { this.groupPreview = null; },
+      async clearGroups() {
+        if (!this.armThen('清空分组', this.armClearGroups, v => this.armClearGroups = v)) return;
+        await api('POST', `/classes/${this.classId}/groups-clear`, {});
+        await refresh();
+        toast('已清空全部分组', 'ok');
+      },
     },
     template: `
     <div :class="embedded ? '' : 'page'">
@@ -143,6 +190,13 @@
             <input type="file" accept=".xlsx,.xls,.csv" style="display:none" @change="onImportFile">
           </label>
           <button class="btn" @click="downloadTemplate">下载模板</button>
+          <label class="btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-8M12 21V3M7 21v-5"/></svg>
+            导入分组
+            <input type="file" accept=".xlsx,.xls,.csv" style="display:none" @change="onGroupFile">
+          </label>
+          <button class="btn" @click="downloadGroupTemplate">分组模板</button>
+          <button class="btn sm danger" v-if="groupNames.length" :class="{armed: armClearGroups}" @click="clearGroups">{{ armClearGroups ? '再点一次确认清空' : '清空分组' }}</button>
         </div>
       </div>
 
@@ -165,8 +219,24 @@
         </div>
       </div>
 
+      <div class="card" v-if="groupPreview">
+        <h2>分组导入预览 <span class="sub">{{ groupPreview.fileName }} · 共 {{ groupPreview.rows.length }} 行</span></h2>
+        <p class="hint" style="margin-bottom:10px">按姓名匹配已有名单并更新组别（同名学生用学号列消歧）；匹配不到的行跳过，完成后会提示。清空组别列不会清除已有分组。</p>
+        <div style="max-height:220px;overflow:auto;margin-bottom:12px">
+          <table class="list">
+            <thead><tr><th>#</th><th>姓名</th><th>学号（可选）</th><th>组别</th></tr></thead>
+            <tbody><tr v-for="(r,i) in groupPreview.rows.slice(0,50)" :key="i"><td>{{ i+1 }}</td><td>{{ r.name }}</td><td>{{ r.stuNo || '—' }}</td><td>{{ r.group }}</td></tr></tbody>
+          </table>
+          <div class="hint" v-if="groupPreview.rows.length > 50">仅显示前 50 行…</div>
+        </div>
+        <div class="row">
+          <button class="btn primary" :disabled="groupBusy" @click="confirmGroupImport">确认导入</button>
+          <button class="btn" @click="cancelGroupImport">取消</button>
+        </div>
+      </div>
+
       <div class="card" v-if="cls">
-        <h2>「{{ cls.name }}」名单 <span class="sub">{{ studentsOf(classId).length }} 人</span></h2>
+        <h2>「{{ cls.name }}」名单 <span class="sub">{{ studentsOf(classId).length }} 人{{ groupNames.length ? ' · 已分 ' + groupNames.length + ' 组' : '' }}</span></h2>
         <div class="row" style="margin-bottom:10px">
           <input v-model="newStudent.stuNo" placeholder="学号(可空)" style="width:110px">
           <input v-model="newStudent.name" placeholder="姓名" @keyup.enter="addStudent" style="width:140px">
@@ -176,11 +246,12 @@
           </button>
         </div>
         <table class="list" v-if="students.length">
-          <thead><tr><th style="width:70px">学号</th><th>姓名</th><th style="width:90px"></th></tr></thead>
+          <thead><tr><th style="width:70px">学号</th><th>姓名</th><th style="width:120px">组别</th><th style="width:90px"></th></tr></thead>
           <tbody>
             <tr v-for="s in students" :key="s.id">
               <td><input v-model="s.stuNo" style="width:60px;padding:4px 8px" @change="saveStudent(s)"></td>
               <td><input v-model="s.name" style="width:120px;padding:4px 8px" @change="saveStudent(s)"></td>
+              <td><input v-model="s.group" list="hw-group-list" placeholder="未分组" maxlength="12" style="width:100px;padding:4px 8px" @change="saveStudent(s)"></td>
               <td><button class="btn sm danger" :class="{armed: armStudentId===s.id}" @click="deleteStudent(s)">{{ armStudentId===s.id ? '确认删除' : '删除' }}</button></td>
             </tr>
           </tbody>
@@ -191,6 +262,8 @@
       <div class="empty" v-else-if="state.loaded && !state.classes.length">
         先创建一个班级，再导入学生名单
       </div>
+
+      <datalist id="hw-group-list"><option v-for="g in groupNames" :key="g" :value="g"></option></datalist>
     </div>`,
     setup() { return { state, studentsOf, refresh }; },
   });

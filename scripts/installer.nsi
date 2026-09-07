@@ -3,7 +3,7 @@
 ; 数据目录在安装目录内 data\，卸载时保留数据，避免误删作业记录
 Unicode true
 Name "作业扫码登记"
-OutFile "..\dist\HomeworkScan_1.0.0_Windows_Setup.exe"
+OutFile "..\dist\HomeworkScan_1.1.0_Windows_Setup.exe"
 InstallDir "$LOCALAPPDATA\作业扫码登记"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma

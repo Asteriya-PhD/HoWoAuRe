@@ -42,7 +42,7 @@ HoWoAuRe/
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
 | `api` | express.Router | server.js:195 | 全部 REST API（/classes /students /sessions /scan /grade 等） |
-| `doScan` | function | server.js:159 | 扫码登记核心：查学生→去重→记录→返回结果 |
+| `doScan` | function | server.js:159 | 扫码登记核心：查学生→分组检查（分组场次拒收组外学生）→去重→记录→返回结果 |
 | `parseCode` | function | server.js:136 | 解析二维码 payload → {classId, stuNo, name} |
 | `loadCert` | function | server.js:106 | 自签证书加载，IP SAN 不匹配自动重签 |
 | `sessionStats` | function | server.js:151 | 已交/迟交统计（`s.stats.submitted/late`，前端进度条数据源） |
@@ -58,7 +58,7 @@ HoWoAuRe/
 - **前端无构建工具**：不引入 bundler/TS，库靠 `npm run vendor` 本地化进 `public/vendor/`。
 - **无 ESLint/Prettier/rustfmt 配置**，遵循各语言默认风格即可。
 - Commit message 用中文、描述用户可感知的变化（看 git log）。
-- 数据结构：单文件 JSON `data/db.json` = `{counter, classes, students, sessions}`，session.submissions 记录扫码顺序与等级。
+- 数据结构：单文件 JSON `data/db.json` = `{counter, classes, students, sessions}`，student 有 `group` 字段（组别，空=未分组），session 有 `groups` 数组（所选组名，空=收全班）；分组场次的统计分母/学生列表只算所选组（`sessionStats`/`sessionFull`），`session.submissions` 记录扫码顺序与等级。
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
