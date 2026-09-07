@@ -49,7 +49,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 手动触发（main 分支）默认挂到 v1.0.0；tag 触发（v*）挂同名 Release
-          $tag = if ($env:GITHUB_REF_NAME -eq 'main') { 'v1.0.0' } else { $env:GITHUB_REF_NAME }
+          # 按构建产物文件名里的版本号挂同名 Release（如 HomeworkScan_1.1.0_* → v1.1.0）
+          $exe = (Get-ChildItem dist/HomeworkScan_*_Windows_Setup.exe | Select-Object -First 1).Name
+          $tag = 'v' + ($exe -replace '^HomeworkScan_(.+)_Windows_Setup\.exe$', '$1')
           gh release upload $tag dist/HomeworkScan_*.exe --clobber
           Write-Host "已挂到 Release $tag"
