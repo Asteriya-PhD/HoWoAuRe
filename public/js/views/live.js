@@ -32,8 +32,8 @@
       },
       statText() {
         if (!this.session) return {};
-        const { submitted, late, total } = this.session.stats;
-        return { submitted, late, total, absent: total - submitted - late };
+        const { submitted, late, total, leave } = this.session.stats;
+        return { submitted, late, total, leave: leave || 0, absent: total - submitted - late };
       },
     },
     async created() {
@@ -63,6 +63,14 @@
             break;
           case 'setlate':
             if (s && s.sub) s.sub.status = m.status;
+            this.session.stats = m.stats;
+            break;
+          case 'leave':
+            if (s) {
+              if (m.leave) { if (!this.session.leave) this.session.leave = {}; this.session.leave[s.id] = Date.now(); }
+              else if (this.session.leave) delete this.session.leave[s.id];
+              s.onLeave = !!m.leave;
+            }
             this.session.stats = m.stats;
             break;
           case 'grade':
@@ -98,6 +106,11 @@
           await api('POST', `/sessions/${this.sid}/scan`, { code: window.QrPdf.payload(cls, s) });
           toast(`已登记「${s.name}」`, 'ok');
         }
+        if (action === 'leave') {
+          const target = !s.onLeave;
+          await api('POST', `/sessions/${this.sid}/leave`, { studentId: s.id, leave: target });
+          toast(target ? `已标记「${s.name}」请假` : `已取消「${s.name}」的请假`, 'ok');
+        }
       },
       async copyAbsent() {
         const text = absentText(this.session);
@@ -116,7 +129,7 @@
         for (const s of list) {
           rows.push([
             s.stuNo, s.name, s.group || '',
-            !s.sub ? '未交' : s.sub.status === 'late' ? '补交' : '已交',
+            !s.sub ? (s.onLeave ? '请假' : '未交') : s.sub.status === 'late' ? '补交' : '已交',
             s.sub ? s.sub.order : '',
             s.sub ? new Date(s.sub.time).toLocaleTimeString('zh-CN', { hour12: false }) : '',
             s.sub?.grade || '',
@@ -210,6 +223,10 @@
             <div class="stat-big" style="color:var(--warn);font-size:30px">{{ statText.late }}</div>
             <div class="hint">补交</div>
           </div>
+          <div style="text-align:center;min-width:90px" v-if="statText.leave">
+            <div class="stat-big" style="color:var(--leave-d);font-size:30px">{{ statText.leave }}</div>
+            <div class="hint">请假</div>
+          </div>
           <div style="text-align:center;min-width:90px">
             <div class="stat-big" style="color:var(--danger);font-size:30px">{{ statText.absent }}</div>
             <div class="hint">未交</div>
@@ -240,13 +257,13 @@
           <span class="chip" :class="{on: viewMode==='stuNo'}" @click="viewMode='stuNo'">按学号</span>
           <span class="chip" :class="{on: viewMode==='order'}" @click="viewMode='order'">按扫码顺序</span>
           <div class="spacer"></div>
-          <span class="hint"><span class="legend-dot ok"></span> 已交 · <span class="legend-dot late"></span> 补交 · 点学生卡可撤销/标记</span>
+          <span class="hint"><span class="legend-dot ok"></span> 已交 · <span class="legend-dot late"></span> 补交 · <span class="legend-dot leave"></span> 请假 · 点学生卡可撤销/标记</span>
         </div>
         <div class="stu-grid">
-          <div v-for="s in studentsView" :key="s.id" class="stu-card" :class="s.sub ? (s.sub.status==='late' ? 'late' : 'ok') : ''" @click="picked = s">
+          <div v-for="s in studentsView" :key="s.id" class="stu-card" :class="s.sub ? (s.sub.status==='late' ? 'late' : 'ok') : (s.onLeave ? 'leave' : '')" @click="picked = s">
             <span class="order-no" v-if="s.sub">#{{ s.sub.order }}</span>
             <div class="name">{{ s.name }}</div>
-            <div class="meta">{{ s.stuNo }}<span class="time" v-if="s.sub"> · {{ fmtTime(s.sub.time) }}</span><span v-if="s.sub && s.sub.status==='late'"> · 补交</span></div>
+            <div class="meta">{{ s.stuNo }}<span class="time" v-if="s.sub"> · {{ fmtTime(s.sub.time) }}</span><span v-if="s.sub && s.sub.status==='late'"> · 补交</span><span v-if="s.onLeave && !s.sub"> · 请假</span></div>
             <span class="grade-chip" :class="gradePosCls(s.sub.grade)" v-if="s.sub && s.sub.grade">{{ s.sub.grade }}</span>
           </div>
         </div>
@@ -258,11 +275,13 @@
           <h2 style="justify-content:center">{{ picked.name }}（{{ picked.stuNo }}）</h2>
           <p class="hint" style="margin-bottom:14px">
             {{ picked.sub ? (picked.sub.status==='late' ? '补交 · 顺序#'+picked.sub.order : '已交 · 顺序#'+picked.sub.order) : '未交' }}
+            <template v-if="picked.onLeave">（请假）</template>
           </p>
           <div class="row" style="justify-content:center">
-            <button class="btn primary" v-if="!picked.sub" @click="act('mark')">✓ 标记已交（补登记）</button>
+            <button class="btn primary" v-if="!picked.sub && !picked.onLeave" @click="act('mark')">✓ 标记已交（补登记）</button>
             <button class="btn" v-if="picked.sub" @click="act('unsubmit')">撤销登记</button>
             <button class="btn" v-if="picked.sub" @click="act('late')">{{ picked.sub.status==='late' ? '改为已交' : '标记补交' }}</button>
+            <button class="btn" @click="act('leave')">{{ picked.onLeave ? '取消请假' : '标记请假' }}</button>
           </div>
           <button class="btn sm" style="margin-top:12px" @click="picked=null">关闭</button>
         </div>

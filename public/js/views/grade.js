@@ -13,6 +13,7 @@
         cursor: 0,           // 当前批改位置（列表下标）
         checked: new Set(),  // 批量选择的 studentId
         undoStack: [],
+        showMissing: false,  // 未交名单折叠面板
       };
     },
     computed: {
@@ -29,13 +30,17 @@
       gradedCount() { return this.rows.filter(r => r.sub && r.sub.grade).length; },
       allChecked() { return this.rows.length > 0 && this.rows.every(r => this.checked.has(r.id)); },
       ungradedRows() { return this.rows.filter(r => !r.sub.grade); },
+      notSubmitted() {
+        if (!this.session) return [];
+        return this.session.students.filter(s => !s.sub);
+      },
     },
     async created() {
       await this.load();
       this.off = onSessionEvent(this.sid, m => {
         // 数据还原后，旧的选择/撤销历史对还原出的数据不再成立
         if (m.type === 'db_changed') { this.checked.clear(); this.undoStack.length = 0; }
-        if (['grade', 'grade_batch', 'scan', 'unsubmit', 'setlate', 'db_changed'].includes(m.type)) this.load();
+        if (['grade', 'grade_batch', 'scan', 'unsubmit', 'setlate', 'leave', 'db_changed'].includes(m.type)) this.load();
       });
       window.addEventListener('keydown', this.onKey);
     },
@@ -132,6 +137,11 @@
         await this.load();
         toast(`已把 ${ids.length} 份未批改作业设为「${grade}」`, 'ok');
       },
+      // 请假与已交可并存：请假后又扫到码的照样算已交，不销记录
+      async toggleLeave(s) {
+        await api('POST', `/sessions/${this.sid}/leave`, { studentId: s.id, leave: !s.onLeave });
+        toast(s.onLeave ? `已取消「${s.name}」的请假` : `已标记「${s.name}」请假（如扫描到本子仍会正常登记）`, 'ok');
+      },
     },
     template: `
     <div class="page" v-if="session">
@@ -182,6 +192,25 @@
           </div>
         </div>
         <div class="empty" v-if="!rows.length">还没有人登记，先去扫码</div>
+      </div>
+
+      <!-- 未交名单：批改时/后补标记请假（请假学生当次不收取） -->
+      <div class="card">
+        <div class="row" style="margin-bottom:10px;cursor:pointer;user-select:none" @click="showMissing = !showMissing">
+          <b>未交名单（{{ notSubmitted.length }}）</b>
+          <span class="tag royal" v-if="notSubmitted.some(s => s.onLeave)">请假 {{ notSubmitted.filter(s => s.onLeave).length }}</span>
+          <div class="spacer"></div>
+          <span class="btn sm">{{ showMissing ? '▾' : '▸' }} 展开</span>
+        </div>
+        <div class="row" v-if="showMissing" style="flex-wrap:wrap;gap:8px">
+          <button v-for="s in notSubmitted" :key="s.id" class="btn sm"
+            :style="s.onLeave ? 'color:var(--leave-d);border-color:var(--leave)' : ''"
+            :title="s.onLeave ? '点击取消请假' : '点击标记请假'"
+            @click="toggleLeave(s)">
+            {{ s.name }}<span v-if="s.onLeave"> · 请假</span>
+          </button>
+          <span class="hint" v-if="!notSubmitted.length">全员交齐 🎉</span>
+        </div>
       </div>
     </div>
     <div class="page" v-else-if="missing"><div class="empty">场次不存在（可能已被「数据还原」覆盖）　<router-link to="/history">返回历史</router-link></div></div>
