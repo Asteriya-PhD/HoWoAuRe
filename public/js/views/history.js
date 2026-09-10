@@ -44,7 +44,8 @@
             const sub = s.submissions[stu.id] || null;
             // 分组场次：该学生不属于所选组时不算「缺」，只标记分组外
             const na = !!(s.groups && s.groups.length && !s.groups.includes(stu.group || ''));
-            return { sub, na, absent: !sub && !na, late: !!(sub && sub.status === 'late'), grade: sub && sub.grade };
+            const leave = !na && !sub && !!((s.leave || {})[stu.id]);
+            return { sub, na, absent: !sub && !na && !leave, late: !!(sub && sub.status === 'late'), leave, grade: sub && sub.grade };
           }),
         }));
         return { cols, rows };
@@ -64,16 +65,18 @@
           .sort((a, b) => (a.date === b.date ? b.id - a.id : (a.date < b.date ? 1 : -1)))
           .map(s => {
             const na = !!(s.groups && s.groups.length && !s.groups.includes(this.stu.group || ''));
-            return { s, sub: s.submissions[this.stu.id] || null, na };
+            return { s, sub: s.submissions[this.stu.id] || null, na, leave: !na && !s.submissions[this.stu.id] && !!((s.leave || {})[this.stu.id]) };
           });
       },
       stuSummary() {
         const items = this.stuTimeline.filter(x => !x.na);
         const ok = items.filter(x => x.sub && x.sub.status === 'ok').length;
         const late = items.filter(x => x.sub && x.sub.status === 'late').length;
+        const leave = items.filter(x => x.leave).length;
         const grades = {};
         for (const x of items) if (x.sub && x.sub.grade) grades[x.sub.grade] = (grades[x.sub.grade] || 0) + 1;
-        return { total: items.length, ok, late, absent: items.length - ok - late, grades };
+        // 未交 = 真正该交没交的（请假未交的同学已从口径里扣除）
+        return { total: items.length, ok, late, leave, absent: items.length - ok - late - leave, grades };
       },
     },
     watch: {
@@ -130,7 +133,7 @@
             for (const stu of full.students.slice().sort((a, b) => (a.stuNo > b.stuNo ? 1 : -1))) {
               rows.push([
                 stu.stuNo, stu.name, stu.group || '',
-                !stu.sub ? '未交' : stu.sub.status === 'late' ? '补交' : '已交',
+                !stu.sub ? (stu.onLeave ? '请假' : '未交') : stu.sub.status === 'late' ? '补交' : '已交',
                 stu.sub ? stu.sub.order : '',
                 stu.sub ? new Date(stu.sub.time).toLocaleTimeString('zh-CN', { hour12: false }) : '',
                 stu.sub?.grade || '',
@@ -218,6 +221,7 @@
                   <td class="stu-cell">{{ row.stu.name }} <span class="hint">{{ row.stu.stuNo }}</span></td>
                   <td v-for="(cell, ci) in row.cells" :key="ci">
                     <span class="hint" v-if="cell.na" title="非本次分组">·</span>
+                    <span v-else-if="cell.leave && !cell.sub" title="请假" class="m-leave">假</span>
                     <template v-else-if="!cell.absent">
                       <span class="grade-chip" :class="gradePosCls(cell.grade)" v-if="cell.grade">{{ cell.grade }}</span>
                       <span class="hint" v-else>已</span>
@@ -236,7 +240,7 @@
             </table>
           </div>
           <div class="empty" v-else>这个班还没有作业记录</div>
-          <p class="hint" style="margin-top:10px">等级底色与批改页一致（在「设置-批改等级」里定义）· 已交未批标「已」· 「补」= 补交 · 「缺」= 未交。作业多时表格可左右滚动，学生列固定。</p>
+          <p class="hint" style="margin-top:10px">等级底色与批改页一致（在「设置-批改等级」里定义）· 已交未批标「已」· 「补」= 补交 · 「缺」= 未交 · 「假」= 请假。作业多时表格可左右滚动，学生列固定。</p>
         </div>
       </template>
 
@@ -266,6 +270,7 @@
               <span class="tag">共 {{ stuSummary.total }} 次</span>
               <span class="tag green">已交 {{ stuSummary.ok }}</span>
               <span class="tag amber" v-if="stuSummary.late">补交 {{ stuSummary.late }}</span>
+              <span class="tag royal" v-if="stuSummary.leave">请假 {{ stuSummary.leave }}</span>
               <span class="tag" :class="{red: stuSummary.absent}" v-if="stuSummary.absent">未交 {{ stuSummary.absent }}</span>
               <span class="tag" v-for="(n, g) in stuSummary.grades" :key="g" :class="gradePosCls(g)">{{ g }} × {{ n }}</span>
             </div>
@@ -277,7 +282,7 @@
                 <tr v-for="row in stuTimeline" :key="row.s.id">
                   <td>{{ row.s.date }}</td>
                   <td><b>{{ row.s.title || row.s.subject }}</b><span class="hint" v-if="row.s.title" style="margin-left:6px">{{ row.s.subject }}</span></td>
-                  <td><span class="hint" v-if="row.na">分组外</span><span class="tag" :class="!row.sub ? '' : (row.sub.status === 'late' ? 'amber' : 'green')" v-else>{{ !row.sub ? '未交' : row.sub.status === 'late' ? '补交' : '已交' }}</span></td>
+                  <td><span class="hint" v-if="row.na">分组外</span><span class="tag royal" v-else-if="row.leave && !row.sub">请假</span><span class="tag" :class="!row.sub ? '' : (row.sub.status === 'late' ? 'amber' : 'green')" v-else>{{ !row.sub ? '未交' : row.sub.status === 'late' ? '补交' : '已交' }}</span></td>
                   <td><span class="grade-chip" :class="gradePosCls(row.sub && row.sub.grade)" v-if="row.sub && row.sub.grade">{{ row.sub.grade }}</span><span class="hint" v-else>—</span></td>
                   <td class="hint">{{ row.sub ? '#' + row.sub.order + ' · ' + fmtTime(row.sub.time) : '' }}</td>
                 </tr>

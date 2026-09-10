@@ -13,6 +13,8 @@ body { font-size: 15px; line-height: 1.55; }
   --amber: var(--warn);    --amber-d: var(--warn-d);    --amber-light: var(--warn-bg);
   --red: var(--danger);    --red-d: var(--danger-d);    --red-light: var(--danger-bg);
   --blue: var(--info);     --blue-d: var(--info-d);     --blue-light: var(--info-bg);
+  /* 请假专用色（固定紫，随主题主色调会撞补交的琥珀色） */
+  --leave: #a78bfa;        --leave-d: #7c3aed;          --leave-bg: #f3e8ff;
 }
 
 /* ---------- 布局 ---------- */
@@ -122,11 +124,12 @@ textarea:focus { box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .25); }
 /* ---------- 标签/徽章 ---------- */
 .tag { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--radius-pill); padding: 2px 11px; font-size: 12px; font-weight: 600; }
 /* 圆点装饰只给彩色状态标签，中性计数标签（如「6/9」「已批 12/30」）不带 */
-.tag.green::before, .tag.amber::before, .tag.red::before, .tag.blue::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .75; }
+.tag.green::before, .tag.amber::before, .tag.red::before, .tag.blue::before, .tag.royal::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .75; }
 .tag.green { background: var(--ok-bg); color: var(--ok-d); }
 .tag.amber { background: var(--warn-bg); color: var(--warn-d); }
 .tag.red   { background: var(--danger-bg); color: var(--danger-d); }
 .tag.blue  { background: var(--info-bg); color: var(--info-d); }
+.tag.royal { background: var(--leave-bg); color: var(--leave-d); }
 .tag.gray  { background: rgba(0,0,0,.06); color: var(--ink-2); }
 
 /* ---------- 表格 ---------- */
@@ -186,6 +189,10 @@ table.list tr:last-child td { border-bottom: none; }
 .stu-card.late { border-color: var(--warn); background: var(--warn-bg); }
 .stu-card.late::before { content: "补交"; position: absolute; top: -8px; right: 8px; font-size: 10.5px; background: var(--warn); color: #fff; border-radius: var(--radius-pill); padding: 0 8px; font-weight: 700; border: 1px solid var(--ink); }
 [data-theme="warm"] .stu-card.late::before, [data-theme="glass"] .stu-card.late::before { border: none; }
+.stu-card.leave { border-color: var(--leave-d); background: var(--leave-bg); }
+.stu-card.leave .name { color: var(--leave-d); }
+.stu-card.leave::before { content: "请假"; position: absolute; top: -8px; right: 8px; font-size: 10.5px; background: var(--leave-d); color: #fff; border-radius: var(--radius-pill); padding: 0 8px; font-weight: 700; border: 1px solid var(--ink); }
+[data-theme="warm"] .stu-card.leave::before, [data-theme="glass"] .stu-card.leave::before { border: none; }
 
 .grade-chip { display: inline-flex; border-radius: 8px; padding: 0 9px; font-size: 13px; font-weight: 700; color: #fff; }
 
@@ -240,6 +247,7 @@ table.matrix { border-collapse: collapse; width: max-content; min-width: 100%; f
 .matrix .col-sum { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 12.5px; border-top: var(--border-w) solid var(--line-2); }
 .m-absent { background: var(--danger-bg); color: var(--danger-d); font-weight: 700; border-radius: 6px; padding: 1px 7px; }
 .m-late { color: var(--amber); font-weight: 700; margin-left: 3px; }
+.m-leave { background: var(--leave-bg); color: var(--leave-d); font-weight: 700; border-radius: 6px; padding: 1px 7px; }
 
 /* ---------- 扫码页（深色全屏独立体系，不跟随主题） ---------- */
 .scan-page { position: fixed; inset: 0; background: #0b0f0d; color: #fff; z-index: 100; display: flex; flex-direction: column; overflow: hidden; }
@@ -343,6 +351,7 @@ table.matrix { border-collapse: collapse; width: max-content; min-width: 100%; f
 .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 2px; border: 1px solid var(--ink); }
 .legend-dot.ok   { background: var(--ok); }
 .legend-dot.late { background: var(--warn); }
+.legend-dot.leave { background: var(--leave); }
 [data-theme="warm"] .legend-dot, [data-theme="glass"] .legend-dot { border: none; }
 
 /* ---------- 响应式 ---------- */

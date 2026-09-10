@@ -51,7 +51,8 @@
       remain() {
         if (!this.session) return [];
         const done = new Set(Object.keys(this.session.submissions).map(Number));
-        return this.session.students.map(s => ({ ...s, done: done.has(s.id) }));
+        // 请假学生当次不收取：不进未交名单，手动兜底/演示模式都不会登记到他们
+        return this.session.students.filter(s => !s.onLeave).map(s => ({ ...s, done: done.has(s.id) }));
       },
       remainCount() { return this.remain.filter(s => !s.done).length; },
     },
