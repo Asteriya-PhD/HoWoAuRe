@@ -189,16 +189,30 @@ function maxOrder(session) {
   return max;
 }
 
+// 请假名单卫生清洗：{ [studentId]: 时间戳 }，只收安全整数键 + 有限时间戳（旧数据无此字段 = 无人请假）
+function cleanLeave(leave) {
+  const out = {};
+  for (const [k, v] of Object.entries(leave || {})) {
+    const id = Number(k);
+    if (Number.isSafeInteger(id) && id > 0 && Number.isFinite(Number(v))) out[id] = Number(v);
+  }
+  return out;
+}
+
 function sessionStats(session) {
   const ids = Object.keys(session.submissions);
   const submitted = ids.filter(id => session.submissions[id].status === 'ok').length;
   const late = ids.length - submitted;
   const groups = normGroups(session.groups);
-  // 分组场次分母只算所选组人数；未分组/普通场次 = 全班
-  const total = groups.length
-    ? studentsOfClass(session.classId).filter(s => groups.includes(s.group)).length
-    : studentsOfClass(session.classId).length;
-  return { submitted, late, total };
+  // 分组场次分母只算所选组人数；未分组/普通场次 = 全班（请假计数同口径，组外不算）
+  const candidates = groups.length
+    ? studentsOfClass(session.classId).filter(s => groups.includes(s.group))
+    : studentsOfClass(session.classId);
+  // 请假只算没有提交记录的：请假了但本子也交了 → 算已交、留在分母里
+  const leaveMark = session.leave || {};
+  const leave = candidates.filter(s => leaveMark[s.id] && !session.submissions[s.id]).length;
+  // 未交 = total - 已交 - 补交（分母已扣除请假未交的人；未交 = 统计口径里真正该交没交的）
+  return { submitted, late, total: candidates.length - leave, leave };
 }
 
 // 扫码登记：解析二维码 → 校验 → 去重 → 按顺序登记
@@ -462,6 +476,7 @@ api.post('/import', (req, res) => {
       createdAt: Number.isFinite(s.createdAt) ? s.createdAt : Date.now(),
       closed: !!s.closed,
       groups: normGroups(s.groups),
+      leave: cleanLeave(s.leave),
       submissions: cleanSubs(s.submissions),
     }));
   if (!classes.length) return res.status(400).json({ message: '备份文件里没有班级数据' });
@@ -539,12 +554,13 @@ function sessionFull(sess) {
   const groups = normGroups(sess.groups);
   let list = studentsOfClass(sess.classId);
   if (groups.length) list = list.filter(s => groups.includes(s.group));
+  const leave = sess.leave || {};
   return {
     ...sess,
     stats: sessionStats(sess),
     className: classById(sess.classId)?.name || '?',
     students: list.map(s => ({
-      ...s, sub: sess.submissions[s.id] || null,
+      ...s, sub: sess.submissions[s.id] || null, onLeave: !!leave[s.id],
     })),
   };
 }
@@ -579,6 +595,21 @@ api.post('/sessions/:id/setlate', (req, res) => {
   saveDb();
   broadcast({ type: 'setlate', sid: sess.id, studentId: stuId, status: sub.status, stats: sessionStats(sess) });
   res.json({ ok: true });
+});
+
+// 请假标记：{ studentId, leave }；请假学生当次作业默认不收取（分母剔除、未交里看不到）
+// 请假与已交可并存：请假后你又把本子扫进来了，提交记录正常保留并照样打等级
+api.post('/sessions/:id/leave', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  const stuId = +req.body.studentId;
+  const stu = db.students.find(s => s.id === stuId);
+  if (!stu) return res.status(404).json({ message: '学生不存在' });
+  sess.leave = sess.leave || {};
+  if (req.body.leave) sess.leave[stuId] = Date.now(); else delete sess.leave[stuId];
+  saveDb();
+  broadcast({ type: 'leave', sid: sess.id, studentId: stuId, leave: !!req.body.leave, stats: sessionStats(sess) });
+  res.json({ ok: true, stats: sessionStats(sess) });
 });
 
 // 等级：单个 / 批量

@@ -88,6 +88,16 @@
         if (sub) sub.status = msg.status;
         break;
       }
+      case 'leave': {
+        // 请假与已交可并存：标记/取消不动提交记录
+        if (msg.leave) {
+          const sessLeave = sess.leave || (sess.leave = {});
+          sessLeave[msg.studentId] = Date.now();
+        } else if (sess.leave) {
+          delete sess.leave[msg.studentId];
+        }
+        break;
+      }
       case 'grade': {
         const sub = subs[msg.studentId];
         if (sub) sub.grade = msg.grade;
@@ -148,10 +158,10 @@
     return i < 0 ? 'g-unknown' : 'gp' + (i + 1);
   }
 
-  // 未交名单文案
+  // 未交名单文案：请假学生不算未交，不进家长群名单
   function absentText(sessionFull) {
     const t = sessionFull.title ? `「${sessionFull.title}」` : '';
-    const absent = sessionFull.students.filter(s => !s.sub);
+    const absent = sessionFull.students.filter(s => !s.sub && !s.onLeave);
     if (!absent.length) return `【作业登记】${sessionFull.className} ${sessionFull.subject}${t} ${sessionFull.date}：全员交齐 🎉`;
     return `【作业未交名单】${sessionFull.className} ${sessionFull.subject}${t} ${sessionFull.date}：` +
       absent.map(s => s.name).join('、') + `（共${absent.length}人）`;
