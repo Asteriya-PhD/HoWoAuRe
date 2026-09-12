@@ -99,22 +99,6 @@
     };
   }
 
-  // n×n 网格：块大小 w/n、h/n（带 ov 重叠边），均匀铺满整幅
-  function gridTiles(w, h, n, ov) {
-    const tw = Math.ceil(w / n), th = Math.ceil(h / n);
-    const xs = [];
-    const ys = [];
-    for (let i = 0; i < n; i++) {
-      xs.push(Math.min(w - Math.min(tw + ov, w), Math.round(i * (w - tw) / (n - 1 || 1)) - (i ? ov : 0)));
-      ys.push(Math.min(h - Math.min(th + ov, h), Math.round(i * (h - th) / (n - 1 || 1)) - (i ? ov : 0)));
-    }
-    const tiles = [];
-    for (const y0 of ys) for (const x0 of xs) {
-      tiles.push({ x0, y0, x1: Math.min(w, x0 + tw + ov), y1: Math.min(h, y0 + th + ov) });
-    }
-    return tiles;
-  }
-
   /**
    * @param {object} imgData {data(RGBA), width, height}
    * @param {object} opts {

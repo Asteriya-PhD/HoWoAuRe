@@ -129,13 +129,11 @@
       async gradeAllUngraded(grade) {
         const ids = this.rows.filter(r => !r.sub.grade).map(r => r.id);
         if (!ids.length) return toast('没有未批改的作业');
-        for (const id of ids) {
-          const row = this.rows.find(r => r.id === id);
-          this.undoStack.push({ studentId: id, prev: null });
-        }
-        await api('POST', `/sessions/${this.sid}/grade-batch`, { studentIds: ids, grade });
-        await this.load();
-        toast(`已把 ${ids.length} 份未批改作业设为「${grade}」`, 'ok');
+        try {
+          await api('POST', `/sessions/${this.sid}/grade-batch`, { studentIds: ids, grade });
+          await this.load();
+          toast(`已把 ${ids.length} 份未批改作业设为「${grade}」`, 'ok');
+        } catch (e) { toast(e.message, 'err'); }
       },
       // 请假与已交可并存：请假后又扫到码的照样算已交，不销记录
       async toggleLeave(s) {

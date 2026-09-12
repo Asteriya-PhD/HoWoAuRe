@@ -56,6 +56,27 @@
   const registry = {};
   function registerView(name, component) { registry[name] = component; }
 
+  // 文本 → 二维码 PNG dataURL（qrcode-generator 点阵手绘到 canvas，与 PDF 贴纸同源）
+  function makeQrDataUrl(text, scale = 6, quiet = 4) {
+    const qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    const n = qr.getModuleCount();
+    const size = (n + quiet * 2) * scale;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#000';
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+      }
+    }
+    return canvas.toDataURL('image/png');
+  }
+
   // 解析名单工作表：在前 10 行里找「姓名」表头；无表头时把第一列当姓名
   function parseRosterSheet(sheet) {
     const aoa = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
@@ -122,5 +143,5 @@
     return out;
   }
 
-  window.App = { api, toast, fmtTime, download, registerView, registry, parseRosterSheet, parseGroupSheet };
+  window.App = { api, toast, fmtTime, download, registerView, registry, parseRosterSheet, parseGroupSheet, makeQrDataUrl };
 })();

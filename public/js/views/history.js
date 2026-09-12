@@ -127,6 +127,7 @@
         // 逐场导出需要场次详情（含学生），串行拉取
         (async () => {
           let first = null;
+          const usedNames = new Set();
           for (const s of list) {
             const full = await api('GET', `/sessions/${s.id}`);
             const rows = [['学号', '姓名', '组别', '提交状态', '扫码顺序', '提交时间', '等级']];
@@ -140,7 +141,12 @@
               ]);
             }
             const ws = XLSX.utils.aoa_to_sheet(rows);
-            const sheetName = `${s.date}_${s.title || s.subject}`.replace(/[\\/?*\[\]:]/g, '-').slice(0, 31);
+            // 工作表名限 31 字符且不可重复：同日期同科目多场（或超长标题）时加序号去重
+            let sheetName = `${s.date}_${s.title || s.subject}`.replace(/[\\/?*\[\]:]/g, '-').slice(0, 31);
+            for (let n = 2; usedNames.has(sheetName); n++) {
+              sheetName = `${s.date}_${s.title || s.subject}`.replace(/[\\/?*\[\]:]/g, '-').slice(0, 28) + '-' + n;
+            }
+            usedNames.add(sheetName);
             XLSX.utils.book_append_sheet(wb, ws, sheetName);
             if (!first) first = full;
           }

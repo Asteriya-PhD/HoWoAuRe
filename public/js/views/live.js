@@ -1,7 +1,7 @@
 // 大屏看板：与扫码端实时同步，未交名单一键复制/导出
 (function () {
   'use strict';
-  const { api, toast, fmtTime, registerView, download } = window.App;
+  const { api, toast, fmtTime, registerView, download, makeQrDataUrl } = window.App;
   const { state, refresh, onSessionEvent, studentsOf, classById, absentText, gradePosCls } = window.Store;
 
   registerView('live-view', {
@@ -144,18 +144,7 @@
         const info = state.serverInfo;
         if (info && info.ips.length && info.httpsPort) {
           this.scanUrl = `https://${info.ips[0]}:${info.httpsPort}/#/scan?sid=${this.sid}`;
-          const qr = qrcode(0, 'M');
-          qr.addData(this.scanUrl);
-          qr.make();
-          const n = qr.getModuleCount(), scale = 6, quiet = 4;
-          const canvas = document.createElement('canvas');
-          canvas.width = canvas.height = (n + quiet * 2) * scale;
-          const ctx = canvas.getContext('2d');
-          ctx.fillStyle = '#fff';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = '#000';
-          for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
-          this.qrDataUrl = canvas.toDataURL('image/png');
+          this.qrDataUrl = makeQrDataUrl(this.scanUrl);
         }
         this.showPhoneQr = true;
       },

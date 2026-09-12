@@ -278,7 +278,6 @@
       async toggleTorch() {
         const on = await this.engine.toggleTorch();
         this.torchOn = !!on;
-        if (on === false && this.torchOn) this.torchOn = false;
       },
       dismissA2hs() {
         this.showA2hs = false;

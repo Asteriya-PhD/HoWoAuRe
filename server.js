@@ -340,7 +340,10 @@ api.delete('/students/:id', (req, res) => {
   const stu = db.students.find(s => s.id === +req.params.id);
   if (!stu) return res.status(404).json({ message: '学生不存在' });
   db.students = db.students.filter(s => s.id !== stu.id);
-  for (const sess of db.sessions) delete sess.submissions[stu.id];
+  for (const sess of db.sessions) {
+    delete sess.submissions[stu.id];
+    if (sess.leave) delete sess.leave[stu.id];
+  }
   saveDb();
   broadcast({ type: 'students_changed', classId: stu.classId });
   res.json({ ok: true });
@@ -363,7 +366,18 @@ api.post('/classes/:id/import', (req, res) => {
     cleaned.push({ name, stuNo });
   }
   if (!cleaned.length) return res.status(400).json({ message: '没有解析到有效名单（需包含"姓名"列）' });
-  if (req.body.mode === 'replace') db.students = db.students.filter(s => s.classId !== cls.id);
+  if (req.body.mode === 'replace') {
+    // 覆盖导入：旧名单连同本班各场次里的提交/请假记录一起清掉，否则孤儿记录会虚高统计
+    const oldIds = db.students.filter(s => s.classId === cls.id).map(s => s.id);
+    db.students = db.students.filter(s => s.classId !== cls.id);
+    for (const sess of db.sessions) {
+      if (sess.classId !== cls.id) continue;
+      for (const id of oldIds) {
+        delete sess.submissions[id];
+        if (sess.leave) delete sess.leave[id];
+      }
+    }
+  }
   else {
     // 追加时跳过「姓名+学号」完全重复的行
     const existing = new Set(studentsOfClass(cls.id).map(s => s.name + '|' + s.stuNo));
@@ -684,7 +698,9 @@ async function start() {
   loadDb();
   const { key, cert } = await loadCert();
   httpsSrv = https.createServer({ key, cert }, app);
-  httpSrv = http.createServer(app);
+  // HTTP 口不挂 app：request 监听器按注册顺序触发，挂了 app 就没有"先校验
+  // Host 再决定是否服务"的机会。业务请求由下方 request 监听器按 Host 分流。
+  httpSrv = http.createServer();
 
   for (let i = 0; i < 10 && !httpPort; i++) httpPort = await listen(httpSrv, HTTP_PORT_BASE + i, 'HTTP');
   for (let i = 0; i < 10 && !httpsPort; i++) httpsPort = await listen(httpsSrv, HTTPS_PORT_BASE + i, 'HTTPS');
@@ -698,22 +714,25 @@ async function start() {
     console.log('HWSCAN_READY ' + JSON.stringify({ httpPort, httpsPort }));
   }
 
-  // 手机端必须走 HTTPS 才能用摄像头：非本机访问 HTTP 时自动跳转 HTTPS
-  // 跳转目标只允许本机局域网地址（S1：Host 头来自请求，不可信，不能原样回填）
+  // 手机端必须走 HTTPS 才能用摄像头：HTTP 明文口不做任何业务服务——
+  // 本机 loopback（localhost/127.0.0.1，含 Tauri 壳）直接走 app（无证书问题），
+  // 本机局域网 IP 的明文请求 302 到 HTTPS，其余 Host 一律拒绝
+  // （名单属隐私，不允许明文传输；Host 头来自请求不可信，跳转目标只允许
+  // 本机地址，防开放重定向）。
+  // 注意：不能把 app 挂在 httpSrv 上再"事后校验"——Node 按注册顺序触发
+  // request 监听器，Express 会先处理请求，明文 API 等于完全裸奔，且校验器
+  // 再 writeHead 会撞上 headers-already-sent。
   const myHosts = new Set(['localhost', '127.0.0.1', ...lanIps()]);
   httpSrv.on('request', (req, res) => {
-    if (httpsPort) {
-      const host = (req.headers.host || '').split(':')[0];
-      if (!myHosts.has(host)) {
-        // Host 不是本机：拒绝服务而非转发（防止被当明文入口/开放重定向）
-        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('请使用电脑端页面上的二维码地址访问');
-        return;
-      }
-      if (host !== 'localhost' && host !== '127.0.0.1' && !req.url.startsWith('/ws')) {
-        res.writeHead(302, { Location: `https://${host}:${httpsPort}${req.url}` });
-        res.end();
-      }
+    const host = (req.headers.host || '').split(':')[0];
+    if (host === 'localhost' || host === '127.0.0.1') {
+      app(req, res);
+    } else if (myHosts.has(host) && httpsPort) {
+      res.writeHead(302, { Location: `https://${host}:${httpsPort}${req.url}` });
+      res.end();
+    } else {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('请使用电脑端页面上的二维码地址访问');
     }
   });
 

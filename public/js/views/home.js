@@ -1,7 +1,7 @@
 // 工作台：新建收作业场次 + 进行中场次 + 手机扫码入口
 (function () {
   'use strict';
-  const { api, toast, registerView } = window.App;
+  const { api, toast, registerView, makeQrDataUrl } = window.App;
   const { state, refresh, studentsOf, classById, groupsOf, setClass } = window.Store;
 
   const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'];
@@ -78,27 +78,7 @@
           return;
         }
         this.scanUrl = `https://${info.ips[0]}:${info.httpsPort}/#/scan?sid=${sid}`;
-        this.qrDataUrl = this.makeQr(this.scanUrl);
-      },
-      makeQr(text) {
-        const qr = qrcode(0, 'M');
-        qr.addData(text);
-        qr.make();
-        const n = qr.getModuleCount();
-        const scale = 6, quiet = 4;
-        const size = (n + quiet * 2) * scale;
-        const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = '#000';
-        for (let r = 0; r < n; r++) {
-          for (let c = 0; c < n; c++) {
-            if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
-          }
-        }
-        return canvas.toDataURL('image/png');
+        this.qrDataUrl = makeQrDataUrl(this.scanUrl);
       },
     },
     template: `
