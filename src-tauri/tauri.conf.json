@@ -3,6 +3,7 @@
   "productName": "作业扫码登记",
   "version": "1.1.0",
   "identifier": "com.homeworkscan.local",
+  "mainBinaryName": "homework-scan",
   "build": {
     "frontendDist": "../app-ui"
   },
@@ -27,11 +28,8 @@
     "active": true,
     "targets": ["app", "dmg"],
     "icon": ["icons/icon.icns"],
-    "externalBin": ["binaries/hwscan-node"],
     "resources": {
-      "resources/server.js": ".",
-      "resources/public": "public",
-      "resources/node_modules": "node_modules"
+      "resources/public": "public"
     },
     "macOS": {
       "minimumSystemVersion": "11.0"

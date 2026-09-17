@@ -94,4 +94,4 @@
 
 ## 七、给开发者
 
-技术栈与目录说明见 [AGENTS.md](AGENTS.md)。核心：Node.js + Express 单文件服务端（`server.js`）+ Vue 3 无构建前端（`public/`，全离线本地化）+ Tauri 2 macOS 壳。开发调试用 `npm start`（需 Node.js 18+），打包 macOS 用 `cargo tauri build`，Windows 免安装包用 `node scripts/make-win-portable.mjs`。数据为单文件 JSON，含隐私内容已 gitignore。
+技术栈与目录说明见 [AGENTS.md](AGENTS.md)。核心：Rust 版服务端（`src-tauri/src/server/`，内建于 macOS App，与 Node 版 `server.js` 接口逐字段兼容）+ Vue 3 无构建前端（`public/`，全离线本地化）+ Tauri 2 壳。开发调试：Node 版用 `npm start`（需 Node.js 18+），Rust 版用 `cargo run --bin devserve -- --public ../public`；对比测试 `node scripts/api-diff.mjs`。打包 macOS 用 `cargo tauri build`，Windows 免安装包用 `node scripts/make-win-portable.mjs`（仍是 Node 版内核，后续迁移 Rust 版）。数据为单文件 JSON，含隐私内容已 gitignore。
