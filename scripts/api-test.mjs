@@ -81,6 +81,30 @@ async function main() {
   check('批量等级 A-', subOf(stu['张三01']).grade === 'A-' && subOf(stu['赵六04']).grade === 'A-');
   check('未批改为 null', subOf(stu['李四02']).grade === null);
 
+  console.log('== 科目 ==');
+  // 场次改科目：错点科目不用重建场次
+  r = await req('POST', `/sessions/${sess.id}/subject`, { subject: '物理' });
+  check('改场次科目 → 物理', r.subject === '物理', JSON.stringify(r));
+  check('场次不存在 → 404 提示', (await req('POST', `/sessions/999999/subject`, { subject: '物理' })).message === '场次不存在');
+  r = await req('POST', `/sessions/${sess.id}/subject`, { subject: '   ' });
+  check('改科目留空 → 恢复「作业」', r.subject === '作业', JSON.stringify(r));
+  // 科目快捷列表设置
+  r = await req('PUT', '/settings/subjects', { subjects: ['物理', '化学', '生物'] });
+  check('设置科目列表', Array.isArray(r.subjects) && r.subjects.join() === '物理,化学,生物', JSON.stringify(r));
+  r = await req('PUT', '/settings/subjects', { subjects: [] });
+  check('空科目列表被拒', r.message === '至少保留一个科目');
+  r = await req('PUT', '/settings/subjects', { subjects: ['物理', '物理'] });
+  check('科目重复被拒', r.message === '科目「物理」重复了');
+  r = await req('PUT', '/settings/subjects', { subjects: ['物理', '', '化学'] });
+  check('空科目名被拒绝', r.message === '科目名称不能为空');
+  r = await req('PUT', '/settings/subjects', { subjects: Array.from({ length: 13 }, (_, i) => '科' + i) });
+  check('科目超 12 个被拒绝', r.message === '科目最多 12 个');
+  r = await req('PUT', '/settings/subjects', { subjects: ['物理', 123, '化学'] });
+  check('数字元素被 String() 洗成名字（与 grades 接口同语义）', Array.isArray(r.subjects) && r.subjects.join() === '物理,123,化学', JSON.stringify(r));
+  const boot = await req('GET', '/bootstrap');
+  check('bootstrap 带 subjects', Array.isArray(boot.settings.subjects) && boot.settings.subjects.length > 0);
+  await req('PUT', '/settings/subjects', { subjects: ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'] });
+
   console.log('== 撤销与统计 ==');
   await req('POST', `/sessions/${sess.id}/unsubmit`, { studentId: stu['王五03'] });
   full = await req('GET', `/sessions/${sess.id}`);

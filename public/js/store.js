@@ -11,7 +11,10 @@
     classes: [],
     students: [],
     sessions: [],
-    settings: { grades: ['A+', 'A', 'A-', '不合格'] },
+    settings: {
+      grades: ['A+', 'A', 'A-', '不合格'],
+      subjects: ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'],
+    },
     classId: null,      // 当前选中班级（响应式，名单/工作台/二维码页共用，localStorage 仅做持久化）
     wsOpen: false,      // WebSocket 连接状态（供视图决定是否降级轮询）
   });
@@ -23,7 +26,12 @@
     state.classes = db.classes;
     state.students = db.students;
     state.sessions = db.sessions;
-    if (db.settings && Array.isArray(db.settings.grades) && db.settings.grades.length) state.settings = db.settings;
+    // 配置项缺省回退：等级/科目列表为空或缺失时保留当前值（旧服务端可能不带 subjects）
+    if (db.settings && Array.isArray(db.settings.grades) && db.settings.grades.length) {
+      const subjects = Array.isArray(db.settings.subjects) && db.settings.subjects.length
+        ? db.settings.subjects : state.settings.subjects;
+      state.settings = { ...db.settings, subjects };
+    }
     // 选中班级失效（被删/数据还原后 id 变化）时回退到第一个班
     if (!state.classes.some(c => c.id === state.classId)) {
       state.classId = (state.classes[0] && state.classes[0].id) || null;

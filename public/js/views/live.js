@@ -16,6 +16,8 @@
         viewMode: 'stuNo',  // stuNo | order
         editTitle: false,   // 标题就地编辑
         titleDraft: '',
+        editSubject: false, // 科目就地编辑
+        subjectDraft: '',
         armDelete: false,        // 删除场次的就地二次确认
         absentFallback: '',      // 复制未交名单失败时的手动复制兜底
       };
@@ -36,6 +38,10 @@
         return { submitted, late, total, leave: leave || 0, absent: total - submitted - late };
       },
       grades() { return (state.settings && state.settings.grades) || []; },
+      subjects() {
+        const list = (state.settings && state.settings.subjects) || [];
+        return list.length ? list : ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'];
+      },
     },
     async created() {
       await this.load();
@@ -210,6 +216,23 @@
           refresh();
         } catch (e) { toast(e.message, 'err'); }
       },
+      editSubjectStart() {
+        this.subjectDraft = this.session.subject === '作业' ? '' : this.session.subject;
+        this.editSubject = true;
+        this.$nextTick(() => {
+          const el = this.$el && this.$el.querySelector('input[list="hw-subject-list"]');
+          if (el) { el.focus(); el.select(); }
+        });
+      },
+      async saveSubject() {
+        const t = this.subjectDraft.trim();
+        try {
+          await api('POST', `/sessions/${this.sid}/subject`, { subject: t });
+          this.session.subject = t || '作业';
+          this.editSubject = false;
+          toast(t ? `科目已改为「${t}」` : '科目已恢复「作业」', 'ok');
+        } catch (e) { toast(e.message, 'err'); }
+      },
       async deleteSession() {
         // 就地二次确认（Tauri 壳不支持 confirm()）：第一次点进入待确认态，3 秒后自动复位
         if (!this.armDelete) {
@@ -225,9 +248,21 @@
     },
     template: `
     <div class="page" v-if="session">
+      <datalist id="hw-subject-list"><option v-for="s in subjects" :key="s" :value="s"></option></datalist>
       <div class="card">
         <div class="row" style="margin-bottom:14px">
-          <h2 v-if="!editTitle" style="margin:0;font-size:20px">{{ session.className }} · {{ session.subject }}<template v-if="session.title"> ·「{{ session.title }}」</template> · {{ session.date }}</h2>
+          <h2 v-if="!editTitle" style="margin:0;font-size:20px">
+            {{ session.className }} ·
+            <template v-if="editSubject">
+              <input v-model="subjectDraft" list="hw-subject-list" placeholder="科目，留空恢复「作业」" @keyup.enter="saveSubject" @keyup.esc="editSubject=false" style="width:160px;font-size:16px;padding:3px 8px">
+              <button class="btn sm primary" style="padding:2px 8px" @click="saveSubject">保存</button>
+              <button class="btn sm" style="padding:2px 8px" @click="editSubject=false">取消</button>
+            </template>
+            <span v-else style="cursor:pointer" title="点击修改科目" @click="editSubjectStart">{{ session.subject }}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:12px;height:12px;vertical-align:-1px;opacity:.55"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>
+            </span>
+            <template v-if="session.title"> ·「{{ session.title }}」</template> · {{ session.date }}
+          </h2>
           <div v-else class="row title-edit" style="margin:0">
             <input v-model="titleDraft" placeholder="作业标题，如：光的干涉（留空清除）" @keyup.enter="saveTitle" @keyup.esc="editTitle=false">
             <button class="btn sm primary" @click="saveTitle">保存</button>

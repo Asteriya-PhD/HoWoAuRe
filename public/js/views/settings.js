@@ -198,6 +198,98 @@
     setup() { return { state }; },
   });
 
+  // ---- 科目列表子视图 ----
+  const DEFAULT_SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'];
+  registerView('settings-subjects-view', {
+    data() { return { list: [], serverList: [], armRemoveId: null, DEFAULT_SUBJECTS }; },
+    created() { this.reload(); },
+    watch: {
+      // 其他设备/页面改了科目表时同步进来；自己正在编辑还没保存时不打扰
+      'state.settings': {
+        handler() {
+          if (JSON.stringify(this.list) !== JSON.stringify(this.serverList)) return;
+          const fresh = (state.settings || {}).subjects || [];
+          if (JSON.stringify(fresh) !== JSON.stringify(this.list)) {
+            this.list = fresh.slice();
+            this.serverList = fresh.slice();
+          }
+        },
+      },
+    },
+    methods: {
+      reload() {
+        this.list = ((state.settings || {}).subjects || []).slice();
+        this.serverList = this.list.slice();
+      },
+      async save() {
+        const list = this.list.map(s => String(s ?? '').trim());
+        if (list.some(s => !s)) { toast('科目名称不能为空', 'err'); this.list = this.serverList.slice(); return; }
+        const dup = list.find((s, i) => list.indexOf(s) !== i);
+        if (dup) { toast(`科目「${dup}」重复了`, 'err'); this.list = this.serverList.slice(); return; }
+        try {
+          const r = await api('PUT', '/settings/subjects', { subjects: list });
+          this.serverList = r.subjects.slice();
+          this.list = r.subjects.slice();
+          toast('科目已保存', 'ok');
+        } catch (e) {
+          toast(e.message, 'err');
+          this.list = this.serverList.slice();
+        }
+      },
+      add() {
+        if (this.list.length >= 12) return toast('最多 12 个科目', 'err');
+        let name = '新科目';
+        for (let n = 2; this.list.includes(name); n++) name = '新科目' + n;
+        this.list.push(name);
+        this.save();
+      },
+      remove(i) {
+        if (this.list.length <= 1) return toast('至少保留一个科目', 'err');
+        if (this.armRemoveId !== i) {
+          this.armRemoveId = i;
+          toast('再点一次「删除」确认，3 秒内有效', '', 2800);
+          setTimeout(() => { if (this.armRemoveId === i) this.armRemoveId = null; }, 3000);
+          return;
+        }
+        this.armRemoveId = null;
+        this.list.splice(i, 1);
+        this.save();
+      },
+      move(i, d) {
+        const j = i + d;
+        if (j < 0 || j >= this.list.length) return;
+        [this.list[i], this.list[j]] = [this.list[j], this.list[i]];
+        this.save();
+      },
+      restoreDefault() {
+        this.list = DEFAULT_SUBJECTS.slice();
+        this.save();
+      },
+    },
+    template: `
+    <div>
+      <div class="card">
+        <h2>科目列表</h2>
+        <p class="hint" style="margin-bottom:14px">工作台「开一场收作业」的科目快捷按钮，最多 12 个。<br>
+        删掉的科目只影响快捷按钮：已有场次的科目原样保留，看板上的科目文字随时可点开就地修改（也支持任意自定义科目）。</p>
+        <div class="grade-row" v-for="(s, i) in list" :key="i">
+          <span class="idx">{{ i + 1 }}</span>
+          <input v-model="list[i]" maxlength="12" style="width:180px" @change="save">
+          <div class="spacer"></div>
+          <button class="btn sm" :disabled="i === 0" @click="move(i, -1)" title="上移">↑</button>
+          <button class="btn sm" :disabled="i === list.length - 1" @click="move(i, 1)" title="下移">↓</button>
+          <button class="btn sm danger" :class="{armed: armRemoveId === i}" :disabled="list.length <= 1" @click="remove(i)">{{ armRemoveId === i ? '确认删除' : '删除' }}</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" @click="add">添加科目</button>
+          <button class="btn" @click="restoreDefault">恢复默认（{{ DEFAULT_SUBJECTS.slice(0, 4).join(' / ') }} 等 10 个）</button>
+        </div>
+        <p class="hint" style="margin-top:12px">保存后立即生效：工作台的科目按钮同步更新，其他开着的页面也会实时收到。</p>
+      </div>
+    </div>`,
+    setup() { return { state }; },
+  });
+
   // ---- 设置壳：左侧分区导航 + 右侧子视图 ----
   registerView('settings-view', {
     data() {
@@ -206,6 +298,7 @@
         sections: [
           { key: 'appearance', name: '外观',     icon: 'palette' },
           { key: 'grades',     name: '批改等级', icon: 'award' },
+          { key: 'subjects',   name: '科目列表', icon: 'book' },
           { key: 'roster',     name: '班级名单', icon: 'users' },
           { key: 'qr',         name: '二维码',   icon: 'qr' },
           { key: 'data',       name: '数据备份', icon: 'database' },
@@ -215,6 +308,7 @@
         subComponents: {
           appearance: reg['settings-appearance-view'],
           grades:     reg['settings-grades-view'],
+          subjects:   reg['settings-subjects-view'],
           roster:     reg['roster-view'],
           qr:         reg['qr-view'],
           data:       reg['data-view'],
@@ -247,6 +341,7 @@
         const i = {
           palette: '<path d="M12 22a10 10 0 1 1 10-10c0 3-3 3-5 3h-2a2 2 0 0 0-1.6 3.2l-.4 1.2A2 2 0 0 1 11 21H8a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H3"/>',
           award: '<circle cx="12" cy="8" r="6"/><path d="M15.5 12.9L17 22l-5-3-5 3 1.5-9.1"/>',
+          book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
           users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
           qr: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM19 14h2v2h-2zM14 19h2v2h-2zM19 19h2v2h-2z"/>',
           database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"/>',

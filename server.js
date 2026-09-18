@@ -59,6 +59,18 @@ function normalizeGrades(list) {
   // 与 PUT /settings/grades 同一不变量：1~9 档；脏文件超量时截断而非整体回退默认
   return out.length ? out.slice(0, 9) : DEFAULT_GRADES.slice();
 }
+// 工作台科目快捷选择（随备份导出导入）；场次上的科目仍是自由字符串，改配置不影响旧场次
+const DEFAULT_SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'];
+function normalizeSubjects(list) {
+  const out = [];
+  for (const s of (Array.isArray(list) ? list : [])) {
+    if (typeof s !== 'string') continue;
+    const t = s.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim().slice(0, 12);
+    if (t && !out.includes(t)) out.push(t);
+  }
+  // 与 PUT /settings/subjects 同一不变量：1~12 个；脏文件超量时截断而非整体回退默认
+  return out.length ? out.slice(0, 12) : DEFAULT_SUBJECTS.slice();
+}
 const normalizeSettings = (s) => (s && typeof s === 'object' && !Array.isArray(s)) ? s : {};
 
 // 组别名规范化：剥零宽字符、收空白、限长 12（与等级名同一套卫生标准）
@@ -68,7 +80,7 @@ const normGroups = (list) => Array.isArray(list)
   ? [...new Set(list.map(normGroup).filter(Boolean))].slice(0, 20)
   : [];
 
-let db = { counter: 0, classes: [], students: [], sessions: [], settings: { grades: DEFAULT_GRADES.slice() } };
+let db = { counter: 0, classes: [], students: [], sessions: [], settings: { grades: DEFAULT_GRADES.slice(), subjects: DEFAULT_SUBJECTS.slice() } };
 let saveTimer = null;
 
 function loadDb() {
@@ -78,7 +90,11 @@ function loadDb() {
       db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
       for (const key of ['classes', 'students', 'sessions']) if (!Array.isArray(db[key])) db[key] = [];
       if (!Number.isInteger(db.counter)) db.counter = 0;
-      db.settings = { ...normalizeSettings(db.settings), grades: normalizeGrades(db.settings && db.settings.grades) };
+      db.settings = {
+        ...normalizeSettings(db.settings),
+        grades: normalizeGrades(db.settings && db.settings.grades),
+        subjects: normalizeSubjects(db.settings && db.settings.subjects),
+      };
     } catch (e) {
       const corrupt = DB_FILE + '.corrupt-' + Date.now();
       fs.renameSync(DB_FILE, corrupt);
@@ -507,7 +523,7 @@ api.post('/import', (req, res) => {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, 'db-before-import-' + ts + '.json'));
   pruneBackups();
-  db = { counter, classes, students, sessions, settings: { ...normalizeSettings(db.settings), grades: normalizeGrades(d.settings && d.settings.grades) } };
+  db = { counter, classes, students, sessions, settings: { ...normalizeSettings(db.settings), grades: normalizeGrades(d.settings && d.settings.grades), subjects: normalizeSubjects(d.settings && d.settings.subjects) } };
   saveDbNow();
   broadcast({ type: 'db_changed' });
   res.json({ ok: true, classes: classes.length, students: students.length, sessions: sessions.length });
@@ -530,6 +546,25 @@ api.put('/settings/grades', (req, res) => {
   saveDb();
   broadcast({ type: 'settings_changed' });
   res.json({ grades });
+});
+
+// ----- 设置（科目快捷列表） -----
+api.put('/settings/subjects', (req, res) => {
+  const list = Array.isArray(req.body.subjects) ? req.body.subjects : null;
+  if (!list) return res.status(400).json({ message: 'subjects 需要是数组' });
+  if (!list.length) return res.status(400).json({ message: '至少保留一个科目' });
+  if (list.length > 12) return res.status(400).json({ message: '科目最多 12 个' });
+  const subjects = [];
+  for (const s of list) {
+    const t = String(s ?? '').trim().slice(0, 12);
+    if (!t) return res.status(400).json({ message: '科目名称不能为空' });
+    if (subjects.includes(t)) return res.status(400).json({ message: `科目「${t}」重复了` });
+    subjects.push(t);
+  }
+  db.settings = { ...db.settings, subjects };
+  saveDb();
+  broadcast({ type: 'settings_changed' });
+  res.json({ subjects });
 });
 
 // ----- 收作业场次 -----
@@ -558,6 +593,16 @@ api.post('/sessions/:id/title', (req, res) => {
   const sess = sessionById(+req.params.id);
   if (!sess) return res.status(404).json({ message: '场次不存在' });
   sess.title = String(req.body.title || '').trim().slice(0, 50);
+  saveDb();
+  broadcast({ type: 'sessions_changed' });
+  res.json(sess);
+});
+
+// 修改场次科目（创建时点错了不用重建场次；留空恢复「作业」）
+api.post('/sessions/:id/subject', (req, res) => {
+  const sess = sessionById(+req.params.id);
+  if (!sess) return res.status(404).json({ message: '场次不存在' });
+  sess.subject = String(req.body.subject ?? '').trim() || '作业';
   saveDb();
   broadcast({ type: 'sessions_changed' });
   res.json(sess);

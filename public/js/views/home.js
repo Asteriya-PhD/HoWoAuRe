@@ -4,13 +4,12 @@
   const { api, toast, registerView, makeQrDataUrl } = window.App;
   const { state, refresh, studentsOf, classById, groupsOf, setClass } = window.Store;
 
-  const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'];
+  const DEFAULT_SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '科学'];
   const todayStr = () => { const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 
   registerView('home-view', {
     data() {
       return {
-        subjects: SUBJECTS,
         subject: '数学',
         subjectCustom: '',
         title: '',
@@ -26,6 +25,10 @@
       classId: {
         get() { return state.classId; },
         set(v) { setClass(v); },
+      },
+      subjects() {
+        const list = (state.settings && state.settings.subjects) || [];
+        return list.length ? list : DEFAULT_SUBJECTS;
       },
       cls() { return classById(this.classId); },
       clsGroups() { return this.classId ? groupsOf(this.classId) : []; },

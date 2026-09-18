@@ -14,6 +14,9 @@ use crate::server::jsnum::JsNum;
 use crate::server::util;
 
 pub const DEFAULT_GRADES: [&str; 4] = ["A+", "A", "A-", "不合格"];
+pub const DEFAULT_SUBJECTS: [&str; 10] = [
+    "语文", "数学", "英语", "物理", "化学", "生物", "历史", "地理", "政治", "科学",
+];
 pub const MAX_SAFE_INT: f64 = 9.007199254740992e15;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +85,8 @@ pub struct Session {
 pub struct Settings {
     #[serde(default)]
     pub grades: Vec<String>,
+    #[serde(default)]
+    pub subjects: Vec<String>,
     #[serde(flatten, default)]
     pub extra: Map<String, Value>,
 }
@@ -245,6 +250,29 @@ pub fn normalize_grades(list: Option<&Value>) -> Vec<String> {
     }
 }
 
+/// normalizeSubjects：同 normalizeGrades 的卫生标准，1~12 个；空则回退默认
+pub fn normalize_subjects(list: Option<&Value>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    if let Some(Value::Array(items)) = list {
+        for g in items.iter() {
+            if !g.is_string() {
+                continue; // 只收字符串
+            }
+            let s = strip_zero_width(g.as_str().unwrap());
+            let s = s.trim().chars().take(12).collect::<String>();
+            if !s.is_empty() && !out.contains(&s) {
+                out.push(s);
+            }
+        }
+    }
+    if out.is_empty() {
+        DEFAULT_SUBJECTS.iter().map(|s| s.to_string()).collect()
+    } else {
+        out.truncate(12);
+        out
+    }
+}
+
 /// 剥零宽/格式字符（\u200B-\u200D \u2060 \uFEFF）
 pub fn strip_zero_width(s: &str) -> String {
     s.chars()
@@ -342,10 +370,11 @@ impl Store {
     pub fn load(data_dir: PathBuf, app_flag: bool) -> Store {
         let paths = Paths::new(data_dir);
         let _ = std::fs::create_dir_all(&paths.backup_dir);
-        // 空数据启动时也要带上默认等级体系（对应 Node 里初始 db 字面量）
+        // 空数据启动时也要带上默认等级/科目体系（对应 Node 里初始 db 字面量）
         let mut db = Db {
             settings: Settings {
                 grades: DEFAULT_GRADES.iter().map(|s| s.to_string()).collect(),
+                subjects: DEFAULT_SUBJECTS.iter().map(|s| s.to_string()).collect(),
                 extra: Map::new(),
             },
             ..Default::default()
@@ -488,12 +517,13 @@ pub fn value_to_db(v: &Value) -> Db {
             }
         }
     }
-    // normalizeSettings + normalizeGrades
+    // normalizeSettings + normalizeGrades + normalizeSubjects
     let settings = v.get("settings").cloned().unwrap_or(Value::Null);
     db.settings.grades = normalize_grades(settings.get("grades"));
+    db.settings.subjects = normalize_subjects(settings.get("subjects"));
     if let Value::Object(m) = &settings {
         for (k, val) in m {
-            if k != "grades" {
+            if k != "grades" && k != "subjects" {
                 db.settings.extra.insert(k.clone(), val.clone());
             }
         }

@@ -39,9 +39,11 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/export", get(export_db))
         .route("/import", post(import_db))
         .route("/settings/grades", axum::routing::put(set_grades))
+        .route("/settings/subjects", axum::routing::put(set_subjects))
         .route("/sessions", post(create_session))
         .route("/sessions/{id}", get(get_session).delete(delete_session))
         .route("/sessions/{id}/title", post(set_title))
+        .route("/sessions/{id}/subject", post(set_subject))
         .route("/sessions/{id}/scan", post(scan))
         .route("/sessions/{id}/unsubmit", post(unsubmit))
         .route("/sessions/{id}/setlate", post(setlate))
@@ -802,13 +804,17 @@ async fn import_db(State(app): State<Arc<App>>, headers: HeaderMap, body: Bytes)
     );
     prune_backups(&backup_dir);
     let counts = (new_classes.len(), new_students.len(), new_sessions.len());
-    // 等级体系跟导入文件走（保留当前 settings 的其他键）
+    // 等级/科目体系跟导入文件走（保留当前 settings 的其他键）
     let new_settings = crate::server::db::normalize_grades(
         body.get("settings").and_then(|s| s.get("grades")),
+    );
+    let new_subjects = crate::server::db::normalize_subjects(
+        body.get("settings").and_then(|s| s.get("subjects")),
     );
     app.store.with(|db| {
         let mut settings = db.settings.clone();
         settings.grades = new_settings;
+        settings.subjects = new_subjects;
         *db = Db {
             counter,
             classes: new_classes,
@@ -859,6 +865,43 @@ async fn set_grades(State(app): State<Arc<App>>, headers: HeaderMap, body: Bytes
     app.store.touch();
     app.bcast(json!({ "type": "settings_changed" }));
     Json(json!({ "grades": grades })).into_response()
+}
+
+/// PUT /settings/subjects：科目快捷列表，语义照抄 server.js 的 /settings/grades
+async fn set_subjects(State(app): State<Arc<App>>, headers: HeaderMap, body: Bytes) -> Response {
+    let Ok(body) = parse_body(&body, &headers).await else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Some(list) = body.get("subjects").and_then(|v| v.as_array()) else {
+        return err(StatusCode::BAD_REQUEST, "subjects 需要是数组");
+    };
+    if list.is_empty() {
+        return err(StatusCode::BAD_REQUEST, "至少保留一个科目");
+    }
+    if list.len() > 12 {
+        return err(StatusCode::BAD_REQUEST, "科目最多 12 个");
+    }
+    let mut subjects: Vec<String> = Vec::new();
+    for s in list {
+        let t = js_nullish_str(Some(s), String::new())
+            .trim()
+            .chars()
+            .take(12)
+            .collect::<String>();
+        if t.is_empty() {
+            return err(StatusCode::BAD_REQUEST, "科目名称不能为空");
+        }
+        if subjects.contains(&t) {
+            return err(StatusCode::BAD_REQUEST, &format!("科目「{t}」重复了"));
+        }
+        subjects.push(t);
+    }
+    app.store.with(|db| {
+        db.settings.subjects = subjects.clone();
+    });
+    app.store.touch();
+    app.bcast(json!({ "type": "settings_changed" }));
+    Json(json!({ "subjects": subjects })).into_response()
 }
 
 // ---------- 场次 ----------
@@ -944,6 +987,28 @@ async fn set_title(State(app): State<Arc<App>>, Path(id): Path<String>, headers:
             .chars()
             .take(50)
             .collect();
+        Some(to_value(&*sess))
+    });
+    let Some(sess) = sess else {
+        return err(StatusCode::NOT_FOUND, "场次不存在");
+    };
+    app.store.touch();
+    app.bcast(json!({ "type": "sessions_changed" }));
+    Json(sess).into_response()
+}
+
+/// POST /sessions/{id}/subject：改场次科目（留空恢复「作业」），语义照抄 server.js
+async fn set_subject(State(app): State<Arc<App>>, Path(id): Path<String>, headers: HeaderMap, body: Bytes) -> Response {
+    let Ok(body) = parse_body(&body, &headers).await else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let id = js_param_num(&id);
+    let sess = app.store.with(|db| {
+        let Some(sess) = find_session_mut(db, id) else {
+            return None;
+        };
+        let s = js_or_str(body.get("subject"), "").trim().to_string();
+        sess.subject = if s.is_empty() { "作业".to_string() } else { s };
         Some(to_value(&*sess))
     });
     let Some(sess) = sess else {
