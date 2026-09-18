@@ -42,15 +42,17 @@
       this.off = onSessionEvent(this.sid, m => this.onEvent(m));
       this.keyHandler = (ev) => {
         // 弹窗没开、焦点在输入框时不抢键盘
-        if (!this.picked || !this.picked.sub) return;
+        if (!this.picked) return;
         if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA') return;
         if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
         let g;
         if (/^[1-9]$/.test(ev.key)) g = this.grades[Number(ev.key) - 1];
-        else if (ev.key === 'x' || ev.key === 'X') g = null;
+        else if (this.picked.sub && (ev.key === 'x' || ev.key === 'X')) g = null;
         if (g === undefined) return;
         ev.preventDefault();
-        this.setGrade(this.picked, g);
+        // 已交：直接改档；未交：一步「登记 + 打档」
+        if (this.picked.sub) this.setGrade(this.picked, g);
+        else if (g !== null) this.markAndGrade(this.picked, g);
       };
       window.addEventListener('keydown', this.keyHandler);
     },
@@ -65,6 +67,18 @@
           await api('POST', `/sessions/${this.sid}/grade`, { studentId: s.id, grade });
           s.sub.grade = grade;
           toast(`「${s.name}」${grade === null ? '已清除等级' : '等级已设为 ' + grade}`, 'ok');
+        } catch (e) { toast(e.message, 'err'); }
+      },
+      // 一步到位：未交学生点等级 = 补登记已交 + 打该档（分组场次拒收组外学生，失败原样提示）
+      async markAndGrade(s, grade) {
+        const cls = classById(this.session.classId);
+        try {
+          const r = await api('POST', `/sessions/${this.sid}/scan`, { code: window.QrPdf.payload(cls, s) });
+          if (!r.ok) return toast(r.message || '登记失败', 'err');
+          await api('POST', `/sessions/${this.sid}/grade`, { studentId: s.id, grade });
+          if (s.sub) s.sub.grade = grade;
+          else s.sub = { order: r.order, time: r.time || Date.now(), status: r.status, grade };
+          toast(`已登记「${s.name}」并设为 ${grade}${r.status === 'late' ? '（补交）' : ''}`, 'ok');
         } catch (e) { toast(e.message, 'err'); }
       },
       async load() {
@@ -122,14 +136,19 @@
       async act(action) {
         const s = this.picked;
         if (!s) return;
-        this.picked = null;
+        // 补登记后弹窗保留，紧接着就能在同一弹窗里点等级；其余操作照旧关掉
+        if (action !== 'mark') this.picked = null;
         if (action === 'unsubmit') await api('POST', `/sessions/${this.sid}/unsubmit`, { studentId: s.id });
         if (action === 'late') await api('POST', `/sessions/${this.sid}/setlate`, { studentId: s.id, late: !(s.sub && s.sub.status === 'late') });
         if (action === 'mark') {
           // 桌面端补登记：手机漏扫的学生，老师在大屏上直接点「已交」
           const cls = classById(this.session.classId);
-          await api('POST', `/sessions/${this.sid}/scan`, { code: window.QrPdf.payload(cls, s) });
-          toast(`已登记「${s.name}」`, 'ok');
+          try {
+            const r = await api('POST', `/sessions/${this.sid}/scan`, { code: window.QrPdf.payload(cls, s) });
+            if (!r.ok) return toast(r.message || '登记失败', 'err');
+            if (!s.sub) s.sub = { order: r.order, time: r.time || Date.now(), status: r.status, grade: null };
+            toast(`已登记「${s.name}」，接着点下方等级即可`, 'ok');
+          } catch (e) { toast(e.message, 'err'); }
         }
         if (action === 'leave') {
           const target = !s.onLeave;
@@ -306,6 +325,14 @@
               <button class="gbtn" v-if="picked.sub.grade" title="键盘 X" @click="setGrade(picked, null)">×</button>
             </div>
             <p class="hint" style="margin-top:8px">登记等级：键盘 <span class="kbd">1</span>~<span class="kbd">{{ grades.length }}</span> 选档，<span class="kbd">X</span> 清除</p>
+          </template>
+          <template v-else-if="!picked.onLeave && grades.length">
+            <div class="row" style="justify-content:center;margin-top:14px;flex-wrap:wrap;gap:6px">
+              <button class="gbtn" v-for="(g, i) in grades" :key="g"
+                :title="'键盘 ' + (i + 1) + '：登记并打该档'"
+                @click="markAndGrade(picked, g)">{{ g }}</button>
+            </div>
+            <p class="hint" style="margin-top:8px">一步登记：点等级 = 本子已交 + 打该档（键盘 <span class="kbd">1</span>~<span class="kbd">{{ grades.length }}</span>）</p>
           </template>
           <button class="btn sm" style="margin-top:12px" @click="picked=null">关闭</button>
         </div>
