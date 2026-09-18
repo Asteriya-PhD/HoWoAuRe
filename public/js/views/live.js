@@ -35,13 +35,38 @@
         const { submitted, late, total, leave } = this.session.stats;
         return { submitted, late, total, leave: leave || 0, absent: total - submitted - late };
       },
+      grades() { return (state.settings && state.settings.grades) || []; },
     },
     async created() {
       await this.load();
       this.off = onSessionEvent(this.sid, m => this.onEvent(m));
+      this.keyHandler = (ev) => {
+        // 弹窗没开、焦点在输入框时不抢键盘
+        if (!this.picked || !this.picked.sub) return;
+        if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA') return;
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        let g;
+        if (/^[1-9]$/.test(ev.key)) g = this.grades[Number(ev.key) - 1];
+        else if (ev.key === 'x' || ev.key === 'X') g = null;
+        if (g === undefined) return;
+        ev.preventDefault();
+        this.setGrade(this.picked, g);
+      };
+      window.addEventListener('keydown', this.keyHandler);
     },
-    beforeUnmount() { if (this.off) this.off(); },
+    beforeUnmount() {
+      if (this.off) this.off();
+      window.removeEventListener('keydown', this.keyHandler);
+    },
     methods: {
+      async setGrade(s, grade) {
+        if (!s.sub) return;
+        try {
+          await api('POST', `/sessions/${this.sid}/grade`, { studentId: s.id, grade });
+          s.sub.grade = grade;
+          toast(`「${s.name}」${grade === null ? '已清除等级' : '等级已设为 ' + grade}`, 'ok');
+        } catch (e) { toast(e.message, 'err'); }
+      },
       async load() {
         try {
           this.session = await api('GET', `/sessions/${this.sid}`);
@@ -246,7 +271,7 @@
           <span class="chip" :class="{on: viewMode==='stuNo'}" @click="viewMode='stuNo'">按学号</span>
           <span class="chip" :class="{on: viewMode==='order'}" @click="viewMode='order'">按扫码顺序</span>
           <div class="spacer"></div>
-          <span class="hint"><span class="legend-dot ok"></span> 已交 · <span class="legend-dot late"></span> 补交 · <span class="legend-dot leave"></span> 请假 · 点学生卡可撤销/标记</span>
+          <span class="hint"><span class="legend-dot ok"></span> 已交 · <span class="legend-dot late"></span> 补交 · <span class="legend-dot leave"></span> 请假 · 点学生卡可打等级/撤销/标记</span>
         </div>
         <div class="stu-grid">
           <div v-for="s in studentsView" :key="s.id" class="stu-card" :class="s.sub ? (s.sub.status==='late' ? 'late' : 'ok') : (s.onLeave ? 'leave' : '')" @click="picked = s">
@@ -272,6 +297,16 @@
             <button class="btn" v-if="picked.sub" @click="act('late')">{{ picked.sub.status==='late' ? '改为已交' : '标记补交' }}</button>
             <button class="btn" @click="act('leave')">{{ picked.onLeave ? '取消请假' : '标记请假' }}</button>
           </div>
+          <template v-if="picked.sub">
+            <div class="row" style="justify-content:center;margin-top:14px;flex-wrap:wrap;gap:6px">
+              <button class="gbtn" v-for="(g, i) in grades" :key="g"
+                :title="'键盘 ' + (i + 1)"
+                :class="{ [gradePosCls(g)]: picked.sub.grade === g }"
+                @click="setGrade(picked, g)">{{ g }}</button>
+              <button class="gbtn" v-if="picked.sub.grade" title="键盘 X" @click="setGrade(picked, null)">×</button>
+            </div>
+            <p class="hint" style="margin-top:8px">登记等级：键盘 <span class="kbd">1</span>~<span class="kbd">{{ grades.length }}</span> 选档，<span class="kbd">X</span> 清除</p>
+          </template>
           <button class="btn sm" style="margin-top:12px" @click="picked=null">关闭</button>
         </div>
       </div>
