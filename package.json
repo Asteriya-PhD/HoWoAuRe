@@ -1,6 +1,6 @@
 {
   "name": "homework-scan",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "作业扫码登记 - 局域网连续扫码自动登记系统",
   "main": "server.js",
   "scripts": {
